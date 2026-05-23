@@ -7,7 +7,7 @@
         {
           "foreground": "#45F1C2",
           "style": "plain",
-          "template": "\ueb99 {{ .UserName }} on",
+          "template": "\ueb99 {{ .UserName }}@{{ .HostName }} on",
           "type": "session"
         },
         {
@@ -40,13 +40,13 @@
         {
           "foreground": "#cd5e42",
           "style": "plain",
-          "template": "\ue3bf ",
+          "template": "# ",
           "type": "root"
         },
         {
           "foreground": "#CD4277",
           "style": "plain",
-          "template": "# ",
+          "template": "$ ",
           "type": "text"
         }
       ],
