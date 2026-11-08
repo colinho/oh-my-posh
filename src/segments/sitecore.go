@@ -9,10 +9,9 @@ import (
 )
 
 const (
-	sitecoreFileName    = "sitecore.json"
-	sitecoreFolderName  = ".sitecore"
-	userFileName        = "user.json"
-	defaultEndpointName = "default"
+	sitecoreFileName   = "sitecore.json"
+	sitecoreFolderName = ".sitecore"
+	userFileName       = "user.json"
 )
 
 type Sitecore struct {
@@ -31,6 +30,16 @@ type UserConfig struct {
 	DefaultEndpoint string                    `json:"defaultEndpoint"`
 }
 
+// Activation gates on the sitecore.json marker in the cwd; the
+// .sitecore/user.json companion check stays in Enabled only (it looks
+// inside a subdirectory, which a cwd file glob cannot express).
+func (s *Sitecore) Activation() Activation {
+	return Activation{FileGlobs: []string{sitecoreFileName}}
+}
+
+// Enabled re-verifies the sitecore.json presence even though a passing gate
+// implies it: Force and pinned data bypass the gate, so Enabled must stay
+// standalone-correct. The re-check hits the memoized directory listing.
 func (s *Sitecore) Enabled() bool {
 	if !s.env.HasFiles(sitecoreFileName) || !s.env.HasFilesInDir(sitecoreFolderName, userFileName) {
 		log.Debug("sitecore cli configuration files were not found")
@@ -48,7 +57,7 @@ func (s *Sitecore) Enabled() bool {
 
 	displayDefault := s.options.Bool(options.DisplayDefault, true)
 
-	if !displayDefault && s.EndpointName == defaultEndpointName {
+	if !displayDefault && s.EndpointName == defaultStr {
 		log.Debug("displaying of the default environment is turned off")
 		return false
 	}
@@ -80,7 +89,7 @@ func (u *UserConfig) getDefaultEndpoint() string {
 		return u.DefaultEndpoint
 	}
 
-	return defaultEndpointName
+	return defaultStr
 }
 
 func (u *UserConfig) getEndpoint(name string) *EndpointConfig {

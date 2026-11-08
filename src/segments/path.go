@@ -53,7 +53,7 @@ type Path struct {
 	pwd             string
 	Location        string
 	pathSeparator   string
-	Path            string
+	Path            template.Markup
 	Folders         Folders
 	StackCount      int
 	windowsPath     bool
@@ -63,28 +63,18 @@ type Path struct {
 }
 
 const (
-	// FolderSeparatorIcon the path which is split will be separated by this icon
-	FolderSeparatorIcon options.Option = "folder_separator_icon"
-	// FolderSeparatorTemplate the path which is split will be separated by this template
+	FolderSeparatorIcon     options.Option = "folder_separator_icon"
 	FolderSeparatorTemplate options.Option = "folder_separator_template"
-	// HomeIcon indicates the $HOME location
-	HomeIcon options.Option = "home_icon"
-	// FolderIcon identifies one folder
-	FolderIcon options.Option = "folder_icon"
-	// WindowsRegistryIcon indicates the registry location on Windows
-	WindowsRegistryIcon options.Option = "windows_registry_icon"
-	// Agnoster displays a short path with separator icon, this the default style
-	Agnoster string = "agnoster"
-	// AgnosterFull displays all the folder names with the folder_separator_icon
-	AgnosterFull string = "agnoster_full"
-	// AgnosterShort displays the folder names with one folder_separator_icon, regardless of depth
+	HomeIcon                options.Option = "home_icon"
+	FolderIcon              options.Option = "folder_icon"
+	WindowsRegistryIcon     options.Option = "windows_registry_icon"
+	// Agnoster is the default style.
+	Agnoster      string = "agnoster"
+	AgnosterFull  string = "agnoster_full"
 	AgnosterShort string = "agnoster_short"
-	// Short displays a shorter path
-	Short string = "short"
-	// Full displays the full path
-	Full string = "full"
-	// FolderType displays the current folder
-	FolderType string = "folder"
+	Short         string = "short"
+	Full          string = "full"
+	FolderType    string = "folder"
 	// Mixed like agnoster, but if a folder name is short enough, it is displayed as-is
 	Mixed string = "mixed"
 	// Letter like agnoster, but with the first letter of each folder name
@@ -93,45 +83,32 @@ const (
 	Unique string = "unique"
 	// AgnosterLeft like agnoster, but keeps the left side of the path
 	AgnosterLeft string = "agnoster_left"
-	// Powerlevel tries to mimic the powerlevel10k path,
-	// used in combination with max_width.
-	Powerlevel string = "powerlevel"
-	// MixedThreshold the threshold of the length of the path Mixed will display
-	MixedThreshold options.Option = "mixed_threshold"
-	// MappedLocations allows overriding certain location with an icon
-	MappedLocations options.Option = "mapped_locations"
-	// MappedLocationsEnabled enables overriding certain locations with an icon
+	// AgnosterGit like agnoster, but never folds the nearest git repository root; used in combination with max_width.
+	AgnosterGit string = "agnoster_git"
+	// Powerlevel tries to mimic the powerlevel10k path; used in combination with max_width.
+	Powerlevel             string         = "powerlevel"
+	MixedThreshold         options.Option = "mixed_threshold"
+	MappedLocations        options.Option = "mapped_locations"
 	MappedLocationsEnabled options.Option = "mapped_locations_enabled"
-	// MaxDepth Maximum path depth to display without shortening
-	MaxDepth options.Option = "max_depth"
-	// MaxWidth Maximum path width to display for powerlevel style
-	MaxWidth options.Option = "max_width"
-	// Hides the root location if it doesn't fit in max_depth. Used in Agnoster Short
-	HideRootLocation options.Option = "hide_root_location"
-	// A color override cycle
-	Cycle options.Option = "cycle"
-	// Color the path separators within the cycle
+	// Expands capture group references ($1, ${name}, ...) using the full regex match,
+	// instead of only substituting the first capture group.
+	MappedLocationsRegexExpand options.Option = "mapped_locations_regex_expand"
+	MaxDepth                   options.Option = "max_depth"
+	MaxWidth                   options.Option = "max_width"
+	// Hides the root location if it doesn't fit in max_depth; used in Agnoster Short.
+	HideRootLocation     options.Option = "hide_root_location"
+	Cycle                options.Option = "cycle"
 	CycleFolderSeparator options.Option = "cycle_folder_separator"
-	// format to use on the folder names
-	FolderFormat options.Option = "folder_format"
-	// format to use on the first and last folder of the path
-	EdgeFormat options.Option = "edge_format"
-	// format to use on first folder of the path
-	LeftFormat options.Option = "left_format"
-	// format to use on the last folder of the path
-	RightFormat options.Option = "right_format"
-	// GitDirFormat format to use on the git directory
-	GitDirFormat options.Option = "gitdir_format"
-	// DisplayCygpath transforms the path to a cygpath format
-	DisplayCygpath options.Option = "display_cygpath"
-	// DisplayRoot indicates if the linux root slash should be displayed
-	DisplayRoot options.Option = "display_root"
-	// Fish displays the path in a fish-like style
-	Fish string = "fish"
-	// DirLength the length of the directory name to display in fish style
-	DirLength options.Option = "dir_length"
-	// FullLengthDirs indicates how many full length directory names should be displayed in fish style
-	FullLengthDirs options.Option = "full_length_dirs"
+	FolderFormat         options.Option = "folder_format"
+	EdgeFormat           options.Option = "edge_format"
+	LeftFormat           options.Option = "left_format"
+	RightFormat          options.Option = "right_format"
+	GitDirFormat         options.Option = "gitdir_format"
+	DisplayCygpath       options.Option = "display_cygpath"
+	DisplayRoot          options.Option = "display_root"
+	Fish                 string         = "fish"
+	DirLength            options.Option = "dir_length"
+	FullLengthDirs       options.Option = "full_length_dirs"
 )
 
 func (pt *Path) Template() string {
@@ -244,43 +221,56 @@ func (pt *Path) setStyle() {
 			root += pt.getFolderSeparator()
 		}
 
-		pt.Path = pt.colorizePath(root, nil)
+		pt.Path = template.RawMarkup(pt.colorizePath(root, nil))
 		return
 	}
+
+	var styled string
 
 	switch style := pt.options.String(options.Style, Agnoster); style {
 	case Agnoster:
 		maxWidth := pt.getMaxWidth()
-		pt.Path = pt.getAgnosterPath(maxWidth)
+		styled = pt.getAgnosterPath(maxWidth)
 	case AgnosterFull:
-		pt.Path = pt.getAgnosterFullPath()
+		styled = pt.getAgnosterFullPath()
 	case AgnosterShort:
-		pt.Path = pt.getAgnosterShortPath()
+		styled = pt.getAgnosterShortPath()
 	case Mixed:
-		pt.Path = pt.getMixedPath()
+		styled = pt.getMixedPath()
 	case Letter:
-		pt.Path = pt.getLetterPath()
+		styled = pt.getLetterPath()
 	case Unique:
-		pt.Path = pt.getUniqueLettersPath(0)
+		styled = pt.getUniqueLettersPath(0)
 	case AgnosterLeft:
-		pt.Path = pt.getAgnosterLeftPath()
+		styled = pt.getAgnosterLeftPath()
+	case AgnosterGit:
+		maxWidth := pt.getMaxWidth()
+		styled = pt.getAgnosterGitPath(maxWidth)
 	case Full, Short: // "short" is a duplicate of "full", just here for backwards compatibility
-		pt.Path = pt.getFullPath()
+		styled = pt.getFullPath()
 	case FolderType:
-		pt.Path = pt.getFolderPath()
+		styled = pt.getFolderPath()
 	case Powerlevel:
 		maxWidth := pt.getMaxWidth()
-		pt.Path = pt.getUniqueLettersPath(maxWidth)
+		styled = pt.getUniqueLettersPath(maxWidth)
 	case Fish:
-		pt.Path = pt.getFishPath()
+		styled = pt.getFishPath()
 	default:
-		pt.Path = fmt.Sprintf("Path style: %s is not available", style)
+		styled = fmt.Sprintf("Path style: %s is not available", style)
 	}
 
 	// make sure we resolve all templates
-	if txt, err := template.Render(pt.Path, pt); err == nil {
-		pt.Path = txt
+	//
+	// styled mixes raw folder names (chevrons already escaped by
+	// replaceMappedLocations) with rendered config templates, so it must not
+	// get the functions that touch the OS (cmd, readFile, stat, glob): use
+	// the restricted renderer. Literal text, including the config anchors,
+	// passes through unchanged; embedded actions render escaped.
+	if txt, err := template.RenderUntrusted(styled, pt); err == nil {
+		styled = txt
 	}
+
+	pt.Path = template.RawMarkup(styled)
 }
 
 func (pt *Path) getMaxWidth() int {
@@ -289,7 +279,7 @@ func (pt *Path) getMaxWidth() int {
 		return 0
 	}
 
-	txt, err := template.Render(width, pt)
+	txt, err := template.RenderTrusted(width, pt)
 	if err != nil {
 		log.Error(err)
 		return 0
@@ -316,7 +306,7 @@ func (pt *Path) getFolderSeparator() string {
 		return separator
 	}
 
-	txt, err := template.Render(separatorTemplate, pt)
+	txt, err := template.RenderTrusted(separatorTemplate, pt)
 	if err != nil {
 		log.Error(err)
 	}
@@ -451,15 +441,18 @@ func (pt *Path) getFishPath() string {
 	var elements []string
 	for i := range folderCount {
 		name := folders[i].Name
-		runeCount := utf8.RuneCountInString(name)
+		// cut the folder name as it is on disk, not its escaped form: a cut
+		// inside an escape would leave a dangling delimiter or chevron
+		raw := template.UnescapeSource(name)
+		runeCount := utf8.RuneCountInString(raw)
 		if folders[i].Display || dirLength <= 0 || runeCount < dirLength || i >= stopAt {
 			elements = append(elements, name)
 			continue
 		}
 
 		// Convert string to rune slice to properly handle multi-byte characters
-		runes := []rune(name)
-		elements = append(elements, string(runes[:dirLength]))
+		runes := []rune(raw)
+		elements = append(elements, template.EscapeSource(string(runes[:dirLength])))
 	}
 
 	if len(elements) == 1 {
@@ -571,6 +564,96 @@ func (pt *Path) getAgnosterMaxWidth(maxWidth int) string {
 	return pt.colorizePath(folderNames[0], folderNames[1:])
 }
 
+// getAgnosterGitPath is like getAgnosterMaxWidth, but never folds the folder that matches the
+// nearest git repository root (if any), so the repository identity survives shortening.
+func (pt *Path) getAgnosterGitPath(maxWidth int) string {
+	separator := pt.getFolderSeparator()
+	folderIcon := pt.options.String(FolderIcon, "..")
+
+	root, folders := pt.getPaths()
+	folderNames := append([]string{root}, folders.List()...)
+
+	n := len(folderNames)
+	if n == 0 {
+		return pt.colorizePath(root, nil)
+	}
+
+	// max_width is a soft limit here: root, the repository root, and the current
+	// folder are landmarks that are never folded away, even if still over width.
+	protected := make([]bool, n)
+	protected[0] = true
+	protected[n-1] = true
+
+	if repoIndex := pt.gitRootFolderIndex(folders); repoIndex >= 0 {
+		protected[repoIndex+1] = true
+	}
+
+	collapsed := func() []string { return mergeFolderIcons(folderNames, folderIcon) }
+
+	if maxWidth <= 0 || utf8.RuneCountInString(strings.Join(collapsed(), separator)) <= maxWidth {
+		merged := collapsed()
+		return pt.colorizePath(merged[0], merged[1:])
+	}
+
+	for i := 1; i < n-1 && utf8.RuneCountInString(strings.Join(collapsed(), separator)) > maxWidth; i++ {
+		if protected[i] {
+			continue
+		}
+
+		folderNames[i] = folderIcon
+	}
+
+	merged := collapsed()
+
+	return pt.colorizePath(merged[0], merged[1:])
+}
+
+// gitRootFolderIndex returns the index in folders matching the nearest git repository root,
+// or -1 if there is none. It shares the (cached) parent-file lookup used by gitdir_format.
+func (pt *Path) gitRootFolderIndex(folders Folders) int {
+	parent, OK := pt.gitRootPath()
+	if !OK {
+		return -1
+	}
+
+	for i, folder := range folders {
+		if folder.Path == parent {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// gitRootPath returns the normalized path of the nearest git repository root above pwd.
+func (pt *Path) gitRootPath() (string, bool) {
+	dir, err := pt.env.HasParentFilePath(".git", false)
+	if err != nil {
+		return "", false
+	}
+
+	// Linked worktrees use a .git file instead of a directory.
+	// Make it consistent with the modified parent.
+	return pt.join(pt.replaceMappedLocations(dir.ParentFolder)), true
+}
+
+// mergeFolderIcons collapses consecutive folder_icon entries into a single one, so folding
+// several adjacent folders never prints the icon more than once in a row.
+func mergeFolderIcons(names []string, icon string) []string {
+	merged := make([]string, 0, len(names))
+
+	for _, name := range names {
+		last := len(merged) - 1
+		if name == icon && last >= 0 && merged[last] == icon {
+			continue
+		}
+
+		merged = append(merged, name)
+	}
+
+	return merged
+}
+
 func (pt *Path) getAgnosterFullPath() string {
 	root, folders := pt.getPaths()
 
@@ -648,7 +731,7 @@ func (pt *Path) setMappedLocations() {
 			continue
 		}
 
-		location, err := template.Render(key, pt)
+		location, err := template.RenderTrusted(key, pt)
 		if err != nil {
 			log.Error(err)
 		}
@@ -678,9 +761,14 @@ func (pt *Path) replaceMappedLocations(inputPath string) (string, string) {
 		pt.RootDir = true
 	}
 
+	// folder names are untrusted and end up as template source (setStyle
+	// renders the styled path): chevrons would reach the writer as anchors and
+	// a template delimiter would run as an action
+	escape := template.EscapeSource
+
 	pt.setMappedLocations()
 	if len(pt.mappedLocations) == 0 {
-		return root, relative
+		return escape(root), escape(relative)
 	}
 
 	// sort map keys in reverse order
@@ -695,11 +783,6 @@ func (pt *Path) replaceMappedLocations(inputPath string) (string, string) {
 	rootN := pt.normalize(root)
 	relativeN := pt.normalize(relative)
 
-	escape := func(path string) string {
-		// Escape chevron characters to avoid applying unexpected text styles.
-		return strings.NewReplacer("<", "<<>", ">", "<>>").Replace(path)
-	}
-
 	handleRegex := func(key string) (string, bool) {
 		if !strings.HasPrefix(key, regexPrefix) {
 			return "", false
@@ -713,13 +796,25 @@ func (pt *Path) replaceMappedLocations(inputPath string) (string, string) {
 			pattern = "(?i)" + pattern
 		}
 
-		match, OK := regex.FindStringMatch(pattern, input, 1)
+		if pt.options.Bool(MappedLocationsRegexExpand, false) {
+			if !regex.MatchString(pattern, input) {
+				return "", false
+			}
+
+			// Replace the full match, expanding $1, ${name}, etc. from the mapped location.
+			input = regex.ReplaceAllString(pattern, input, pt.mappedLocations[key])
+			input = path.Clean(input)
+
+			return input, true
+		}
+
+		start, end, OK := regex.FindStringMatchIndex(pattern, input, 1)
 		if !OK {
 			return "", false
 		}
 
-		// Replace the first match with the mapped location.
-		input = strings.Replace(input, match, pt.mappedLocations[key], 1)
+		// Replace the matched span with the mapped location.
+		input = input[:start] + pt.mappedLocations[key] + input[end:]
 		input = path.Clean(input)
 
 		return input, true
@@ -727,7 +822,8 @@ func (pt *Path) replaceMappedLocations(inputPath string) (string, string) {
 
 	for _, key := range keys {
 		if input, OK := handleRegex(key); OK {
-			return pt.parsePath(input)
+			mappedRoot, mappedRelative := pt.parsePath(input)
+			return escape(mappedRoot), escape(mappedRelative)
 		}
 
 		keyRoot, keyRelative := pt.parsePath(key)
@@ -765,7 +861,6 @@ func (pt *Path) replaceMappedLocations(inputPath string) (string, string) {
 	return escape(root), strings.Trim(escape(relative), pt.pathSeparator)
 }
 
-// parsePath parses a clean input path into a root and a relative.
 func (pt *Path) parsePath(inputPath string) (string, string) {
 	var root, relative string
 
@@ -970,14 +1065,17 @@ func (pt *Path) splitPath() Folders {
 func (pt *Path) makeFolderFormatMap() map[string]string {
 	folderFormatMap := make(map[string]string)
 
-	if gitDirFormat := pt.options.String(GitDirFormat, ""); len(gitDirFormat) != 0 {
-		dir, err := pt.env.HasParentFilePath(".git", false)
-		if err == nil && dir.IsDir {
-			// Make it consistent with the modified parent.
-			parent := pt.join(pt.replaceMappedLocations(dir.ParentFolder))
-			folderFormatMap[parent] = gitDirFormat
-		}
+	gitDirFormat := pt.options.String(GitDirFormat, "")
+	if len(gitDirFormat) == 0 {
+		return folderFormatMap
 	}
+
+	parent, OK := pt.gitRootPath()
+	if !OK {
+		return folderFormatMap
+	}
+
+	folderFormatMap[parent] = gitDirFormat
 
 	return folderFormatMap
 }

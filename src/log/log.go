@@ -22,6 +22,12 @@ func Enable(plain bool) {
 	Debugf("logging enabled, raw mode: %t", plain)
 }
 
+// Call sites that build an expensive message (e.g. via fmt.Sprintf) before calling
+// Debug/Trace should guard with this check so the formatting is skipped when logging is disabled.
+func Enabled() bool {
+	return enabled
+}
+
 func Trace(start time.Time, args ...string) {
 	if !enabled {
 		return
@@ -112,7 +118,9 @@ func funcSpec() (string, int) {
 
 		// Found first non-log.go frame
 		fn := frame.Function
-		fn = fn[strings.LastIndex(fn, ".")+1:]
+		if _, after, found := strings.CutLast(fn, "."); found {
+			fn = after
+		}
 		file := filepath.Base(frame.File)
 
 		if strings.HasPrefix(fn, "func") {

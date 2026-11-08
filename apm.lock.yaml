@@ -1,100 +1,201 @@
 lockfile_version: '1'
-generated_at: '2026-05-17T14:33:11.312146+00:00'
-apm_version: 0.12.3
+generated_at: '2026-10-10T12:44:02.644177+00:00'
+apm_version: 0.30.0
 dependencies:
-- repo_url: JanDeDobbeleer/agentic
+- repo_url: jandedobbeleer/agentic
+  materialization_repo_url: JanDeDobbeleer/agentic
+  name: agentic-golang
   host: github.com
-  resolved_commit: 92d80e66873d98885281291a11c8acbcf30709f0
+  resolved_commit: bc0f9878493abe9d2e6301d74147a2b542d2a8a5
+  version: 1.0.0
   virtual_path: instructions/golang.instructions.md
   is_virtual: true
   package_type: apm_package
   deployed_files:
+  - .claude/rules/golang.md
   - .github/instructions/golang.instructions.md
   deployed_file_hashes:
-    .github/instructions/golang.instructions.md: sha256:89b03e000879a36a4b68f37136d1dcad039a908f242dd412f59a71e5c159cbb3
-  content_hash: sha256:94556f47cd95ee4c76dec6f7e53aad1948a1a51c6c85a810b320ecf3ebe075b4
-- repo_url: JanDeDobbeleer/agentic
+    .claude/rules/golang.md: sha256:207ef67c9cb658d6982a9f9751cdb652d03f1256759b89a60ed00b0fe6ff4e1c
+    .github/instructions/golang.instructions.md: sha256:d45a8b606314484422a9b5b8927b3b6bf09119555a4cc8c96717db95908cd2ce
+  content_hash: sha256:1af3715a8d349bd74b05db0ab55d657039fdd39da98755f3025bfb7a2599e7b3
+- repo_url: jandedobbeleer/agentic
+  materialization_repo_url: JanDeDobbeleer/agentic
+  name: code-changes
   host: github.com
-  resolved_commit: 92d80e66873d98885281291a11c8acbcf30709f0
-  virtual_path: instructions/markdown.instructions.md
+  resolved_commit: bc0f9878493abe9d2e6301d74147a2b542d2a8a5
+  version: unknown
+  virtual_path: skills/code-changes
   is_virtual: true
-  package_type: apm_package
+  package_type: claude_skill
   deployed_files:
-  - .github/instructions/markdown.instructions.md
+  - .agents/skills/code-changes
+  - .agents/skills/code-changes/SKILL.md
+  - .claude/skills/code-changes
+  - .claude/skills/code-changes/SKILL.md
   deployed_file_hashes:
-    .github/instructions/markdown.instructions.md: sha256:e16f52f4e7f24c8b59caef5b423332690e5bf95d3f3cd37f86eb782b36e6ea82
-  content_hash: sha256:0f47d924eba5b69635958c5fe13194a39deb56fa1e9cab3f556f0d810ac283cd
-- repo_url: JanDeDobbeleer/agentic
+    .agents/skills/code-changes/SKILL.md: sha256:5979c78ddd66d523320a91c559d7e103e3cee21b8d2d6ead2fce108e397685e1
+    .claude/skills/code-changes/SKILL.md: sha256:5979c78ddd66d523320a91c559d7e103e3cee21b8d2d6ead2fce108e397685e1
+  content_hash: sha256:c615a5939293545f3047db39654797c7b0b58852273b65483d91aa8a2da4ba91
+- repo_url: jandedobbeleer/agentic
+  materialization_repo_url: JanDeDobbeleer/agentic
+  name: conventional-commit
   host: github.com
-  resolved_commit: 92d80e66873d98885281291a11c8acbcf30709f0
-  virtual_path: instructions/powershell.instructions.md
-  is_virtual: true
-  package_type: apm_package
-  deployed_files:
-  - .github/instructions/powershell.instructions.md
-  deployed_file_hashes:
-    .github/instructions/powershell.instructions.md: sha256:8a6d0340bb63944ad6b318051a412a380275aa5750e2a9d0d50e2e78b3ecac3f
-  content_hash: sha256:0b75b2bb281c733a5beb1503104c164649d5d2dbc386a4aac3f784da6420c590
-- repo_url: JanDeDobbeleer/agentic
-  host: github.com
-  resolved_commit: b4e8062eaeef93582bf4cbb86ad4816f37630bb2
+  resolved_commit: bc0f9878493abe9d2e6301d74147a2b542d2a8a5
+  version: unknown
   virtual_path: skills/conventional-commit
   is_virtual: true
   package_type: claude_skill
   deployed_files:
   - .agents/skills/conventional-commit
-  content_hash: sha256:d842107e497b6fd51f24e2bfe74dbaf3f9e0e358bf5f95b9d79abbec5785e7af
-- repo_url: JanDeDobbeleer/agentic
+  - .agents/skills/conventional-commit/SKILL.md
+  - .claude/skills/conventional-commit
+  - .claude/skills/conventional-commit/SKILL.md
+  deployed_file_hashes:
+    .agents/skills/conventional-commit/SKILL.md: sha256:133bad5f119c488ba84253ac3f2b73370be24c959d6c1e4c554e78598c006a60
+    .claude/skills/conventional-commit/SKILL.md: sha256:133bad5f119c488ba84253ac3f2b73370be24c959d6c1e4c554e78598c006a60
+  content_hash: sha256:8509ab25f926ab3a8b2f1bc9d050b93f608f00b24c77db33c8cc00bd6504048c
+- repo_url: jandedobbeleer/agentic
+  materialization_repo_url: JanDeDobbeleer/agentic
+  name: golang
   host: github.com
-  resolved_commit: b4e8062eaeef93582bf4cbb86ad4816f37630bb2
+  resolved_commit: bc0f9878493abe9d2e6301d74147a2b542d2a8a5
+  version: unknown
   virtual_path: skills/golang
   is_virtual: true
   package_type: claude_skill
   deployed_files:
   - .agents/skills/golang
-  content_hash: sha256:b0783cb13028c1b486aaffe7bce1b49294e92b22e1f8ce58895e61c639865f90
-- repo_url: JanDeDobbeleer/agentic
-  host: github.com
-  resolved_commit: b4e8062eaeef93582bf4cbb86ad4816f37630bb2
-  virtual_path: skills/markdown
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .agents/skills/markdown
-  content_hash: sha256:fa25f4f36faa33fa51ec6e9a3b5bf7cde618d8d7dfb572dd8f55733dc1813265
-- repo_url: JanDeDobbeleer/agentic
-  host: github.com
-  resolved_commit: b4e8062eaeef93582bf4cbb86ad4816f37630bb2
-  virtual_path: skills/powershell
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .agents/skills/powershell
-  content_hash: sha256:bc844acc1cf9ccc5d2d10e1c889b8b5b69b92f743e3bc11e0bc9a386770fc864
-- repo_url: JanDeDobbeleer/agentic
-  host: github.com
-  resolved_commit: b4e8062eaeef93582bf4cbb86ad4816f37630bb2
-  virtual_path: skills/vale-user-facing-text
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .agents/skills/vale-user-facing-text
-  content_hash: sha256:7676bf19dc93149f469655ffb0b166db7c953fe0483b8a96e763ce024b1c8a59
-- repo_url: ast-grep/agent-skill
-  host: github.com
-  resolved_commit: 577f4d4507678f2c8cee150fae25e6ce309f70b1
-  virtual_path: ast-grep/skills/ast-grep
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .agents/skills/ast-grep
-  content_hash: sha256:e812630c21ec2215bd0abfe33835ae382059112e990411b588b84bb24c4f0a4f
-- repo_url: github/awesome-copilot
-  host: github.com
-  resolved_commit: bb91d3606099fc047798a8b8c28d60989a531a01
-  virtual_path: skills/gh-cli
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .agents/skills/gh-cli
-  content_hash: sha256:cbe644b0c6760ae2a1eaafa39133920d889331327065d92a131675a665273e56
+  - .agents/skills/golang/SKILL.md
+  - .claude/skills/golang
+  - .claude/skills/golang/SKILL.md
+  deployed_file_hashes:
+    .agents/skills/golang/SKILL.md: sha256:9ca1d5c2a275c41491e541feca2e812f61851707dd1b93ef223a76dd31a4d2a2
+    .claude/skills/golang/SKILL.md: sha256:9ca1d5c2a275c41491e541feca2e812f61851707dd1b93ef223a76dd31a4d2a2
+  content_hash: sha256:892a503cc140db994eddb88aa9d782a680b5a44b648bcd3cf385272ac784b049
+deployments:
+- kind: project-relative
+  target: claude
+  value: .claude/rules/golang.md
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/instructions/golang.instructions.md
+  active_owner: jandedobbeleer/agentic/instructions/golang.instructions.md
+  content_hash: sha256:207ef67c9cb658d6982a9f9751cdb652d03f1256759b89a60ed00b0fe6ff4e1c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/code-changes
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/code-changes
+  active_owner: jandedobbeleer/agentic/skills/code-changes
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/code-changes/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/code-changes
+  active_owner: jandedobbeleer/agentic/skills/code-changes
+  content_hash: sha256:5979c78ddd66d523320a91c559d7e103e3cee21b8d2d6ead2fce108e397685e1
+- kind: project-relative
+  target: claude
+  value: .claude/skills/conventional-commit
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/conventional-commit
+  active_owner: jandedobbeleer/agentic/skills/conventional-commit
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/conventional-commit/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/conventional-commit
+  active_owner: jandedobbeleer/agentic/skills/conventional-commit
+  content_hash: sha256:133bad5f119c488ba84253ac3f2b73370be24c959d6c1e4c554e78598c006a60
+- kind: project-relative
+  target: claude
+  value: .claude/skills/golang
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/golang
+  active_owner: jandedobbeleer/agentic/skills/golang
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/golang/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/golang
+  active_owner: jandedobbeleer/agentic/skills/golang
+  content_hash: sha256:9ca1d5c2a275c41491e541feca2e812f61851707dd1b93ef223a76dd31a4d2a2
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/code-changes
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/code-changes
+  active_owner: jandedobbeleer/agentic/skills/code-changes
+  content_hash: null
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/code-changes/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/code-changes
+  active_owner: jandedobbeleer/agentic/skills/code-changes
+  content_hash: sha256:5979c78ddd66d523320a91c559d7e103e3cee21b8d2d6ead2fce108e397685e1
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/conventional-commit
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/conventional-commit
+  active_owner: jandedobbeleer/agentic/skills/conventional-commit
+  content_hash: null
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/conventional-commit/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/conventional-commit
+  active_owner: jandedobbeleer/agentic/skills/conventional-commit
+  content_hash: sha256:133bad5f119c488ba84253ac3f2b73370be24c959d6c1e4c554e78598c006a60
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/golang
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/golang
+  active_owner: jandedobbeleer/agentic/skills/golang
+  content_hash: null
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/golang/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/skills/golang
+  active_owner: jandedobbeleer/agentic/skills/golang
+  content_hash: sha256:9ca1d5c2a275c41491e541feca2e812f61851707dd1b93ef223a76dd31a4d2a2
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/golang.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - jandedobbeleer/agentic/instructions/golang.instructions.md
+  active_owner: jandedobbeleer/agentic/instructions/golang.instructions.md
+  content_hash: sha256:d45a8b606314484422a9b5b8927b3b6bf09119555a4cc8c96717db95908cd2ce

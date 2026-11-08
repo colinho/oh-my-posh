@@ -7,6 +7,7 @@ import (
 	"github.com/jandedobbeleer/oh-my-posh/src/cli/auth"
 	"github.com/jandedobbeleer/oh-my-posh/src/runtime/mock"
 	"github.com/jandedobbeleer/oh-my-posh/src/segments/options"
+	"github.com/jandedobbeleer/oh-my-posh/src/template"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -76,7 +77,7 @@ func TestYTM(t *testing.T) {
 			HasToken:        true,
 			ExpectedEnabled: true,
 			JSONResponse:    `{"video": {"author": "Author", "title": "Title"}, "player": {"trackState": 1, "adPlaying": true}}`,
-			ExpectedString:  "Ad Playing Author - Title",
+			ExpectedString:  "Ad Author - Title",
 		},
 	}
 	for _, tc := range cases {
@@ -84,21 +85,21 @@ func TestYTM(t *testing.T) {
 		env.On("HTTPRequest", ytmdaStatusURL).Return([]byte(tc.JSONResponse), tc.HTTPError)
 
 		if tc.HasToken {
-			cache.Set(cache.Device, auth.YTMDATOKEN, "test_token", cache.INFINITE)
+			cache.Device.Set(auth.YTMDATOKEN, "test_token", cache.INFINITE)
 		}
 
 		props := options.Map{
-			StoppedIcon: "Stopped ",
-			PlayingIcon: "Playing ",
-			PausedIcon:  "Paused ",
-			AdIcon:      "Ad ",
+			StoppedIcon: template.RawMarkup("Stopped "),
+			PlayingIcon: template.RawMarkup("Playing "),
+			PausedIcon:  template.RawMarkup("Paused "),
+			AdIcon:      template.RawMarkup("Ad "),
 		}
 
 		ytm := new(Ytm)
 		ytm.Init(props, env)
 
 		assert.Equal(t, tc.ExpectedEnabled, ytm.Enabled(), tc.Case)
-		cache.DeleteAll(cache.Device)
+		cache.Device.DeleteAll()
 
 		if !tc.ExpectedEnabled {
 			continue

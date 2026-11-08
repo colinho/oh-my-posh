@@ -17,7 +17,7 @@ const (
 type Status struct {
 	Base
 
-	String  string
+	String  template.Markup
 	Meaning string
 	Error   bool
 }
@@ -29,7 +29,7 @@ func (s *Status) Template() string {
 func (s *Status) Enabled() bool {
 	status, pipeStatus := s.env.StatusCodes()
 
-	s.String = s.formatStatus(status, pipeStatus)
+	s.String = template.RawMarkup(s.formatStatus(status, pipeStatus))
 	// Deprecated: Use {{ reason .Code }} instead
 	s.Meaning = template.GetReasonFromStatus(status)
 
@@ -48,7 +48,7 @@ func (s *Status) formatStatus(status int, pipeStatus string) string {
 	}
 
 	if pipeStatus == "" {
-		if txt, err := template.Render(statusTemplate, s); err == nil {
+		if txt, err := template.RenderTrusted(statusTemplate, s); err == nil {
 			return txt
 		}
 
@@ -87,7 +87,7 @@ func (s *Status) formatStatus(status int, pipeStatus string) string {
 
 		context.Code = code
 
-		txt, err := template.Render(statusTemplate, context)
+		txt, err := template.RenderTrusted(statusTemplate, context)
 		if err != nil {
 			write(codeStr)
 			continue

@@ -4,14 +4,14 @@ import (
 	"os"
 
 	"github.com/jandedobbeleer/oh-my-posh/src/cache"
-	"github.com/jandedobbeleer/oh-my-posh/src/cli/auth"
+	"github.com/jandedobbeleer/oh-my-posh/src/cli/auth/tui"
 	"github.com/jandedobbeleer/oh-my-posh/src/log"
 	"github.com/jandedobbeleer/oh-my-posh/src/runtime"
 
-	"github.com/spf13/cobra"
+	"github.com/jandedobbeleer/oh-my-posh/src/cmdtree"
 )
 
-var authCmd = &cobra.Command{
+var authCmd = &cmdtree.Command{
 	Use:   "auth [service]",
 	Short: "Authenticate against a service",
 	Long: `Authenticate against a service.
@@ -19,13 +19,15 @@ var authCmd = &cobra.Command{
 Available services:
 
 - copilot: GitHub Copilot API
+- pear: Pear Desktop API
 - ytmda: YouTube Music Desktop App (YTMDA) API`,
 	ValidArgs: []string{
 		copilotServiceName,
+		"pear",
 		"ytmda",
 	},
 	Args: NoArgsOrOneValidArg,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(cmd *cmdtree.Command, args []string) {
 		if len(args) == 0 {
 			_ = cmd.Help()
 			return
@@ -46,14 +48,20 @@ Available services:
 
 		switch args[0] {
 		case copilotServiceName:
-			authenticator := auth.NewCopilot(env)
-			if err := auth.Run(authenticator); err != nil {
+			authenticator := tui.NewCopilot(env)
+			if err := tui.Run(authenticator); err != nil {
+				log.Error(err)
+				exitcode = 70
+			}
+		case "pear":
+			authenticator := tui.NewPear(env)
+			if err := tui.Run(authenticator); err != nil {
 				log.Error(err)
 				exitcode = 70
 			}
 		case "ytmda":
-			authenticator := auth.NewYtmda(env)
-			if err := auth.Run(authenticator); err != nil {
+			authenticator := tui.NewYtmda(env)
+			if err := tui.Run(authenticator); err != nil {
 				log.Error(err)
 				exitcode = 70
 			}

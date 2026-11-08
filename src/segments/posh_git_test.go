@@ -1,13 +1,12 @@
 package segments
 
 import (
-	"errors"
-	"sync"
 	"testing"
 
 	"github.com/jandedobbeleer/oh-my-posh/src/runtime"
 	"github.com/jandedobbeleer/oh-my-posh/src/runtime/mock"
 	"github.com/jandedobbeleer/oh-my-posh/src/segments/options"
+	"github.com/jandedobbeleer/oh-my-posh/src/template"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -191,21 +190,15 @@ func TestPoshGitSegment(t *testing.T) {
 		env.On("RunCommand", "git", []string{"-C", "", "--no-optional-locks", "-c", "core.quotepath=false",
 			"-c", "color.status=false", "remote", "get-url", origin}).Return("github.com/cli", nil)
 
-		props := &options.Map{
-			FetchUpstreamIcon: tc.FetchUpstreamIcon,
-		}
-
 		g := &Git{
-			Scm: Scm{
-				command: GITCOMMAND,
-			},
+			command: GITCOMMAND,
 		}
-		g.Init(props, env)
+		g.Init(options.Map{}, env)
 
-		g.configOnce = sync.Once{}
-		g.configOnce.Do(func() {
-			g.configErr = errors.New("no config")
-		})
+		// the upstream icon probe is derived from template references now
+		if tc.FetchUpstreamIcon {
+			g.SetReferencedFields(template.RefSet{Fields: gitUpstreamIconFields, Analyzable: true})
+		}
 
 		if tc.Template == "" {
 			tc.Template = g.Template()
@@ -245,6 +238,6 @@ func TestParsePoshGitHEAD(t *testing.T) {
 		g := &Git{}
 		g.Init(&options.Map{}, new(mock.Environment))
 
-		assert.Equal(t, tc.ExpectedString, g.parsePoshGitHEAD(tc.HEAD), tc.Case)
+		assert.Equal(t, tc.ExpectedString, g.parsePoshGitHEAD(tc.HEAD).String(), tc.Case)
 	}
 }

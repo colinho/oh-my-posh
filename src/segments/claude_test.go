@@ -11,6 +11,7 @@ import (
 	"github.com/jandedobbeleer/oh-my-posh/src/text"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestClaudeSegment(t *testing.T) {
@@ -95,17 +96,15 @@ func TestClaudeSegment(t *testing.T) {
 	for _, tc := range cases {
 		// Setup cache for test
 		if tc.ClaudeData != nil {
-			cache.Set(cache.Session, cache.CLAUDECACHE, *tc.ClaudeData, cache.INFINITE)
+			cache.Session.Set(cache.CLAUDECACHE, *tc.ClaudeData, cache.INFINITE)
 		} else {
-			cache.Delete(cache.Session, cache.CLAUDECACHE)
+			cache.Session.Delete(cache.CLAUDECACHE)
 		}
 
 		env := new(mock.Environment)
 		claude := &Claude{
-			Base: Base{
-				env:     env,
-				options: options.Map{},
-			},
+			env:     env,
+			options: options.Map{},
 		}
 
 		enabled := claude.Enabled()
@@ -121,7 +120,7 @@ func TestClaudeSegment(t *testing.T) {
 
 func TestClaudeWorkspaceGitWorktree(t *testing.T) {
 	t.Cleanup(func() {
-		cache.Delete(cache.Session, cache.CLAUDECACHE)
+		cache.Session.Delete(cache.CLAUDECACHE)
 	})
 
 	cases := []struct {
@@ -149,14 +148,12 @@ func TestClaudeWorkspaceGitWorktree(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		cache.Set(cache.Session, cache.CLAUDECACHE, ClaudeData{Workspace: tc.Workspace}, cache.INFINITE)
+		cache.Session.Set(cache.CLAUDECACHE, ClaudeData{Workspace: tc.Workspace}, cache.INFINITE)
 
 		env := new(mock.Environment)
 		claude := &Claude{
-			Base: Base{
-				env:     env,
-				options: options.Map{},
-			},
+			env:     env,
+			options: options.Map{},
 		}
 
 		assert.True(t, claude.Enabled(), tc.Case)
@@ -166,33 +163,33 @@ func TestClaudeWorkspaceGitWorktree(t *testing.T) {
 
 func TestClaudeEffortAndThinking(t *testing.T) {
 	t.Cleanup(func() {
-		cache.Delete(cache.Session, cache.CLAUDECACHE)
+		cache.Session.Delete(cache.CLAUDECACHE)
 	})
 
 	cases := []struct {
+		Effort           *ClaudeEffort
+		Thinking         *ClaudeThinking
 		Case             string
-		Effort           ClaudeEffort
 		ExpectedLevel    string
-		Thinking         ClaudeThinking
 		ExpectedThinking bool
 	}{
 		{
 			Case:             "Reasoning effort active, thinking enabled",
-			Effort:           ClaudeEffort{Level: "xhigh"},
+			Effort:           &ClaudeEffort{Level: "xhigh"},
 			ExpectedLevel:    "xhigh",
-			Thinking:         ClaudeThinking{Enabled: true},
+			Thinking:         &ClaudeThinking{Enabled: true},
 			ExpectedThinking: true,
 		},
 		{
 			Case:             "Reasoning effort active, thinking disabled",
-			Effort:           ClaudeEffort{Level: "high"},
+			Effort:           &ClaudeEffort{Level: "high"},
 			ExpectedLevel:    "high",
 			ExpectedThinking: false,
 		},
 		{
 			Case:             "Reasoning effort absent, thinking enabled",
 			ExpectedLevel:    "",
-			Thinking:         ClaudeThinking{Enabled: true},
+			Thinking:         &ClaudeThinking{Enabled: true},
 			ExpectedThinking: true,
 		},
 		{
@@ -203,22 +200,31 @@ func TestClaudeEffortAndThinking(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		cache.Set(cache.Session, cache.CLAUDECACHE, ClaudeData{
+		cache.Session.Set(cache.CLAUDECACHE, ClaudeData{
 			Effort:   tc.Effort,
 			Thinking: tc.Thinking,
 		}, cache.INFINITE)
 
 		env := new(mock.Environment)
 		claude := &Claude{
-			Base: Base{
-				env:     env,
-				options: options.Map{},
-			},
+			env:     env,
+			options: options.Map{},
 		}
 
 		assert.True(t, claude.Enabled(), tc.Case)
-		assert.Equal(t, tc.ExpectedLevel, claude.Effort.Level, tc.Case)
-		assert.Equal(t, tc.ExpectedThinking, claude.Thinking.Enabled, tc.Case)
+
+		level := ""
+		if claude.Effort != nil {
+			level = claude.Effort.Level
+		}
+
+		thinking := false
+		if claude.Thinking != nil {
+			thinking = claude.Thinking.Enabled
+		}
+
+		assert.Equal(t, tc.ExpectedLevel, level, tc.Case)
+		assert.Equal(t, tc.ExpectedThinking, thinking, tc.Case)
 	}
 }
 
@@ -253,15 +259,25 @@ func TestClaudeEffortAndThinkingJSONShape(t *testing.T) {
 		var data ClaudeData
 		err := json.Unmarshal([]byte(tc.JSON), &data)
 		assert.NoError(t, err, tc.Case)
-		assert.Equal(t, tc.ExpectedLevel, data.Effort.Level, tc.Case)
-		assert.Equal(t, tc.ExpectedThinking, data.Thinking.Enabled, tc.Case)
+
+		level := ""
+		if data.Effort != nil {
+			level = data.Effort.Level
+		}
+
+		thinking := false
+		if data.Thinking != nil {
+			thinking = data.Thinking.Enabled
+		}
+
+		assert.Equal(t, tc.ExpectedLevel, level, tc.Case)
+		assert.Equal(t, tc.ExpectedThinking, thinking, tc.Case)
 	}
 }
 
 func TestClaudeAdditionalStatusLineFieldsJSONShape(t *testing.T) {
 	const (
-		defaultOutputStyleName = "default"
-		originalBranchName     = "main"
+		originalBranchName = "main"
 	)
 
 	cases := []struct {
@@ -275,13 +291,19 @@ func TestClaudeAdditionalStatusLineFieldsJSONShape(t *testing.T) {
 			JSON: `{
 				"cwd": "/repo/project",
 				"session_name": "release-check",
+				"prompt_id": "prompt-456",
 				"transcript_path": "/repo/project/.claude/transcript.jsonl",
 				"version": "2.1.123",
 				"output_style": {
 					"name": "default"
 				},
 				"workspace": {
-					"added_dirs": ["/repo/shared", "/repo/docs"]
+					"added_dirs": ["/repo/shared", "/repo/docs"],
+					"repo": {
+						"host": "github.com",
+						"owner": "anthropics",
+						"name": "claude-code"
+					}
 				},
 				"exceeds_200k_tokens": true,
 				"vim": {
@@ -289,6 +311,11 @@ func TestClaudeAdditionalStatusLineFieldsJSONShape(t *testing.T) {
 				},
 				"agent": {
 					"name": "security-reviewer"
+				},
+				"pr": {
+					"number": 1234,
+					"url": "https://github.com/anthropics/claude-code/pull/1234",
+					"review_state": "pending"
 				},
 				"worktree": {
 					"name": "my-feature",
@@ -300,16 +327,29 @@ func TestClaudeAdditionalStatusLineFieldsJSONShape(t *testing.T) {
 				"fast_mode": true
 			}`,
 			Expected: ClaudeData{
-				CWD:               "/repo/project",
-				SessionName:       "release-check",
-				TranscriptPath:    "/repo/project/.claude/transcript.jsonl",
-				Version:           "2.1.123",
-				OutputStyle:       ClaudeOutputStyle{Name: defaultOutputStyleName},
-				Workspace:         ClaudeWorkspace{AddedDirs: []string{"/repo/shared", "/repo/docs"}},
+				CWD:            "/repo/project",
+				SessionName:    "release-check",
+				PromptID:       "prompt-456",
+				TranscriptPath: "/repo/project/.claude/transcript.jsonl",
+				Version:        "2.1.123",
+				OutputStyle:    &ClaudeOutputStyle{Name: defaultStr},
+				Workspace: ClaudeWorkspace{
+					AddedDirs: []string{"/repo/shared", "/repo/docs"},
+					Repo: &ClaudeRepo{
+						Host:  "github.com",
+						Owner: "anthropics",
+						Name:  "claude-code",
+					},
+				},
 				Exceeds200KTokens: true,
-				Vim:               ClaudeVim{Mode: "NORMAL"},
-				Agent:             ClaudeAgent{Name: "security-reviewer"},
-				Worktree: ClaudeWorktree{
+				Vim:               &ClaudeVim{Mode: "NORMAL"},
+				Agent:             &ClaudeAgent{Name: "security-reviewer"},
+				PR: &ClaudePR{
+					Number:      "1234",
+					URL:         "https://github.com/anthropics/claude-code/pull/1234",
+					ReviewState: "pending",
+				},
+				Worktree: &ClaudeWorktree{
 					Name:           "my-feature",
 					Path:           "/repo/project/.claude/worktrees/my-feature",
 					Branch:         "worktree-my-feature",
@@ -326,15 +366,36 @@ func TestClaudeAdditionalStatusLineFieldsJSONShape(t *testing.T) {
 			ExpectedAddedDirsNil: true,
 		},
 		{
+			Case: "PR number provided as string",
+			JSON: `{"pr":{"number":"1234"}}`,
+			Expected: ClaudeData{
+				PR: &ClaudePR{Number: "1234"},
+			},
+			ExpectedAddedDirsNil: true,
+		},
+		{
+			Case:                 "PR number explicitly null",
+			JSON:                 `{"pr":{"number":null}}`,
+			Expected:             ClaudeData{PR: &ClaudePR{}},
+			ExpectedAddedDirsNil: true,
+		},
+		{
 			Case: "Nested objects empty",
 			JSON: `{
 				"output_style": {},
 				"workspace": {},
 				"vim": {},
 				"agent": {},
+				"pr": {},
 				"worktree": {}
 			}`,
-			Expected:             ClaudeData{},
+			Expected: ClaudeData{
+				OutputStyle: &ClaudeOutputStyle{},
+				Vim:         &ClaudeVim{},
+				Agent:       &ClaudeAgent{},
+				PR:          &ClaudePR{},
+				Worktree:    &ClaudeWorktree{},
+			},
 			ExpectedAddedDirsNil: true,
 		},
 		{
@@ -350,7 +411,7 @@ func TestClaudeAdditionalStatusLineFieldsJSONShape(t *testing.T) {
 			}`,
 			Expected: ClaudeData{
 				Workspace: ClaudeWorkspace{AddedDirs: []string{"/repo/shared"}},
-				Worktree: ClaudeWorktree{
+				Worktree: &ClaudeWorktree{
 					Name: "review",
 					Path: "/repo/project/.claude/worktrees/review",
 				},
@@ -378,22 +439,21 @@ func TestClaudeAdditionalStatusLineFieldsJSONShape(t *testing.T) {
 		assert.NoError(t, err, tc.Case)
 		assert.Equal(t, tc.Expected.CWD, data.CWD, tc.Case)
 		assert.Equal(t, tc.Expected.SessionName, data.SessionName, tc.Case)
+		assert.Equal(t, tc.Expected.PromptID, data.PromptID, tc.Case)
 		assert.Equal(t, tc.Expected.TranscriptPath, data.TranscriptPath, tc.Case)
 		assert.Equal(t, tc.Expected.Version, data.Version, tc.Case)
-		assert.Equal(t, tc.Expected.OutputStyle.Name, data.OutputStyle.Name, tc.Case)
+		assert.Equal(t, tc.Expected.OutputStyle, data.OutputStyle, tc.Case)
 		if tc.ExpectedAddedDirsNil {
 			assert.Nil(t, data.Workspace.AddedDirs, tc.Case)
 		} else {
 			assert.Equal(t, tc.Expected.Workspace.AddedDirs, data.Workspace.AddedDirs, tc.Case)
 		}
 		assert.Equal(t, tc.Expected.Exceeds200KTokens, data.Exceeds200KTokens, tc.Case)
-		assert.Equal(t, tc.Expected.Vim.Mode, data.Vim.Mode, tc.Case)
-		assert.Equal(t, tc.Expected.Agent.Name, data.Agent.Name, tc.Case)
-		assert.Equal(t, tc.Expected.Worktree.Name, data.Worktree.Name, tc.Case)
-		assert.Equal(t, tc.Expected.Worktree.Path, data.Worktree.Path, tc.Case)
-		assert.Equal(t, tc.Expected.Worktree.Branch, data.Worktree.Branch, tc.Case)
-		assert.Equal(t, tc.Expected.Worktree.OriginalCWD, data.Worktree.OriginalCWD, tc.Case)
-		assert.Equal(t, tc.Expected.Worktree.OriginalBranch, data.Worktree.OriginalBranch, tc.Case)
+		assert.Equal(t, tc.Expected.Vim, data.Vim, tc.Case)
+		assert.Equal(t, tc.Expected.Agent, data.Agent, tc.Case)
+		assert.Equal(t, tc.Expected.Workspace.Repo, data.Workspace.Repo, tc.Case)
+		assert.Equal(t, tc.Expected.PR, data.PR, tc.Case)
+		assert.Equal(t, tc.Expected.Worktree, data.Worktree, tc.Case)
 		assert.Equal(t, tc.Expected.FastMode, data.FastMode, tc.Case)
 	}
 }
@@ -851,21 +911,19 @@ func TestClaudeGaugeMethods(t *testing.T) {
 
 func TestClaudeGaugeOptionsReadInEnabled(t *testing.T) {
 	t.Cleanup(func() {
-		cache.Delete(cache.Session, cache.CLAUDECACHE)
+		cache.Session.Delete(cache.CLAUDECACHE)
 	})
 
-	cache.Set(cache.Session, cache.CLAUDECACHE, ClaudeData{
+	cache.Session.Set(cache.CLAUDECACHE, ClaudeData{
 		Model: AIModel{DisplayName: "Opus"},
 	}, cache.INFINITE)
 
 	env := new(mock.Environment)
 	claude := &Claude{
-		Base: Base{
-			env: env,
-			options: options.Map{
-				gaugeMarkedChar:   "█",
-				gaugeUnmarkedChar: "░",
-			},
+		env: env,
+		options: options.Map{
+			gaugeMarkedChar:   "█",
+			gaugeUnmarkedChar: "░",
 		},
 	}
 
@@ -1004,4 +1062,171 @@ func TestClaudeRateLimitResetsIn(t *testing.T) {
 		assertSign(t, claude.FiveHourResetsIn(), tc.FiveHourSign, tc.Case+" (FiveHour)")
 		assertSign(t, claude.SevenDayResetsIn(), tc.SevenDaySign, tc.Case+" (SevenDay)")
 	}
+}
+
+func TestClaudePromptCacheJSONShape(t *testing.T) {
+	cases := []struct {
+		Expected *ClaudePromptCache
+		Case     string
+		JSON     string
+	}{
+		{
+			Case:     "Absent before first API response or on older Claude Code",
+			JSON:     `{"session_id": "abc"}`,
+			Expected: nil,
+		},
+		{
+			Case:     "Explicit null",
+			JSON:     `{"prompt_cache": null}`,
+			Expected: nil,
+		},
+		{
+			Case: "v2.1.251 payload without miss cause fields",
+			JSON: `{"prompt_cache": {
+				"warm": true,
+				"caching_observed": true,
+				"ttl": "5m",
+				"expires_at": 1738429200,
+				"requests": 3,
+				"misses": 0,
+				"expected_rebuilds": 0,
+				"hit_ratio": 0.5,
+				"cache_write_tokens": 1000,
+				"miss_recache_tokens": 0,
+				"last_miss_at": null,
+				"recache_tokens_if_cold": 800
+			}}`,
+			Expected: &ClaudePromptCache{
+				Warm:                true,
+				CachingObserved:     true,
+				TTL:                 "5m",
+				ExpiresAt:           new(int64(1738429200)),
+				Requests:            3,
+				HitRatio:            new(0.5),
+				CacheWriteTokens:    1000,
+				RecacheTokensIfCold: new(800),
+			},
+		},
+		{
+			Case: "Full payload with null counters",
+			JSON: `{"prompt_cache": {
+				"warm": false,
+				"caching_observed": true,
+				"ttl": "1h",
+				"expires_at": null,
+				"requests": 14,
+				"misses": 2,
+				"expected_rebuilds": 1,
+				"hit_ratio": null,
+				"cache_write_tokens": 352000,
+				"miss_recache_tokens": 310200,
+				"last_miss_at": 1738425230,
+				"last_miss_cause": {
+					"causes": ["tools_changed", "system_prompt_changed"],
+					"tools_added": 2,
+					"tools_removed": 1,
+					"system_char_delta": -40
+				},
+				"miss_causes": {"tools_changed": 2},
+				"recache_tokens_if_cold": null
+			}}`,
+			Expected: &ClaudePromptCache{
+				CachingObserved:   true,
+				TTL:               "1h",
+				Requests:          14,
+				Misses:            2,
+				ExpectedRebuilds:  1,
+				CacheWriteTokens:  352000,
+				MissRecacheTokens: 310200,
+				LastMissAt:        new(int64(1738425230)),
+				LastMissCause: &ClaudeLastMissCause{
+					Causes:          []string{"tools_changed", "system_prompt_changed"},
+					ToolsAdded:      2,
+					ToolsRemoved:    1,
+					SystemCharDelta: -40,
+				},
+				MissCauses: map[string]int{"tools_changed": 2},
+			},
+		},
+		{
+			Case: "Null last_miss_cause",
+			JSON: `{"prompt_cache": {"warm": true, "misses": 1, "last_miss_cause": null}}`,
+			Expected: &ClaudePromptCache{
+				Warm:   true,
+				Misses: 1,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		var data ClaudeData
+
+		require.NoError(t, json.Unmarshal([]byte(tc.JSON), &data), tc.Case)
+		assert.Equal(t, tc.Expected, data.PromptCache, tc.Case)
+	}
+}
+
+func TestClaudePromptCacheHitRatio(t *testing.T) {
+	cases := []struct {
+		PromptCache *ClaudePromptCache
+		Case        string
+		Expected    text.Percentage
+	}{
+		{Case: "Nil prompt cache", PromptCache: nil, Expected: 0},
+		{Case: "Nil hit ratio", PromptCache: &ClaudePromptCache{}, Expected: 0},
+		{Case: "Zero", PromptCache: &ClaudePromptCache{HitRatio: new(0.0)}, Expected: 0},
+		{Case: "Rounds up", PromptCache: &ClaudePromptCache{HitRatio: new(0.915)}, Expected: 92},
+		{Case: "Rounds down", PromptCache: &ClaudePromptCache{HitRatio: new(0.914)}, Expected: 91},
+		{Case: "Full", PromptCache: &ClaudePromptCache{HitRatio: new(1.0)}, Expected: 100},
+		{Case: "Above one is capped", PromptCache: &ClaudePromptCache{HitRatio: new(1.5)}, Expected: 100},
+		{Case: "Negative is floored", PromptCache: &ClaudePromptCache{HitRatio: new(-0.5)}, Expected: 0},
+	}
+
+	for _, tc := range cases {
+		claude := &Claude{}
+		claude.PromptCache = tc.PromptCache
+
+		assert.Equal(t, tc.Expected, claude.PromptCacheHitRatio(), tc.Case)
+	}
+}
+
+func TestClaudePromptCacheGauge(t *testing.T) {
+	claude := &Claude{markedChar: "█", unmarkedChar: "░"}
+	assert.Equal(t, "░░░░░", claude.PromptCacheGauge(), "nil prompt cache")
+
+	claude.PromptCache = &ClaudePromptCache{HitRatio: new(0.6)}
+	assert.Equal(t, "███░░", claude.PromptCacheGauge())
+}
+
+func TestClaudePromptCacheExpires(t *testing.T) {
+	claude := &Claude{}
+	assert.True(t, claude.PromptCacheExpiresAt().IsZero(), "nil prompt cache")
+	assert.Zero(t, claude.PromptCacheExpiresIn(), "nil prompt cache")
+
+	claude.PromptCache = &ClaudePromptCache{}
+	assert.True(t, claude.PromptCacheExpiresAt().IsZero(), "nil expires_at")
+	assert.Zero(t, claude.PromptCacheExpiresIn(), "nil expires_at")
+
+	future := libtime.Now().Add(10 * libtime.Minute).Unix()
+	claude.PromptCache.ExpiresAt = &future
+	assert.Equal(t, libtime.Unix(future, 0), claude.PromptCacheExpiresAt())
+	assert.Greater(t, claude.PromptCacheExpiresIn(), 9*libtime.Minute)
+
+	past := libtime.Now().Add(-10 * libtime.Minute).Unix()
+	claude.PromptCache.ExpiresAt = &past
+	assert.Less(t, claude.PromptCacheExpiresIn(), libtime.Duration(0))
+}
+
+func TestClaudeFormattedCacheTokens(t *testing.T) {
+	claude := &Claude{}
+	assert.Equal(t, "0", claude.FormattedCacheWriteTokens(), "nil prompt cache")
+	assert.Equal(t, "0", claude.FormattedMissRecacheTokens(), "nil prompt cache")
+
+	claude.PromptCache = &ClaudePromptCache{CacheWriteTokens: 352000, MissRecacheTokens: 310200}
+	assert.Equal(t, "352.0K", claude.FormattedCacheWriteTokens())
+	assert.Equal(t, "310.2K", claude.FormattedMissRecacheTokens())
+
+	claude.PromptCache = &ClaudePromptCache{CacheWriteTokens: 999, MissRecacheTokens: 2500000}
+	assert.Equal(t, "999", claude.FormattedCacheWriteTokens())
+	assert.Equal(t, "2.5M", claude.FormattedMissRecacheTokens())
 }

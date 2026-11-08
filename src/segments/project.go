@@ -4,17 +4,24 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/gookit/goutil/jsonutil"
 	"github.com/jandedobbeleer/oh-my-posh/src/log"
 	"github.com/jandedobbeleer/oh-my-posh/src/regex"
 	"github.com/jandedobbeleer/oh-my-posh/src/segments/options"
+	"github.com/jandedobbeleer/oh-my-posh/src/text"
 
 	toml "github.com/pelletier/go-toml/v2"
 	yaml "go.yaml.in/yaml/v3"
+)
+
+const (
+	ResolveTargetFromSolution options.Option = "resolve_target_from_solution"
+	SolutionSearchDepth       options.Option = "solution_search_depth"
+	Priority                  options.Option = "priority"
 )
 
 type ProjectItem struct {
@@ -30,12 +37,14 @@ type ProjectData struct {
 	Target  string
 }
 
-// Rust Cargo package
+type LakeFileTOML struct {
+	Name string
+}
+
 type CargoTOML struct {
 	Package ProjectData
 }
 
-// Python package
 type PyProjectTOML struct {
 	Project ProjectData
 	Tool    PyProjectToolTOML
@@ -61,7 +70,51 @@ type Project struct {
 	projects []*ProjectItem
 }
 
+// Activation gates on the union of all project marker files (with per-type
+// file overrides applied), unless always_enabled pins the segment on. The
+// per-item check stays in Enabled: it must know which marker matched to pick
+// the fetcher.
+func (n *Project) Activation() Activation {
+	if n.options.Bool(options.AlwaysEnabled, false) {
+		return Activation{Always: true}
+	}
+
+	n.loadProjects()
+
+	var globs []string
+	for _, item := range n.projects {
+		globs = append(globs, item.Files...)
+	}
+
+	return Activation{FileGlobs: globs}
+}
+
 func (n *Project) Enabled() bool {
+	n.loadProjects()
+
+	if priority := n.options.StringArray(Priority, nil); len(priority) != 0 {
+		n.projects = reorderByPriority(n.projects, priority)
+	}
+
+	for _, item := range n.projects {
+		if !n.hasProjectFile(item) {
+			continue
+		}
+
+		data := item.Fetcher(*item)
+		if data == nil {
+			continue
+		}
+
+		n.ProjectData = *data
+		n.Type = item.Name
+		return true
+	}
+
+	return n.options.Bool(options.AlwaysEnabled, false)
+}
+
+func (n *Project) loadProjects() {
 	n.projects = []*ProjectItem{
 		{
 			Name:    nodeToolName,
@@ -100,7 +153,7 @@ func (n *Project) Enabled() bool {
 		},
 		{
 			Name:    dartToolName,
-			Files:   []string{"pubspec.yaml"},
+			Files:   []string{pubspecFileName},
 			Fetcher: n.getDartPackage,
 		},
 		{
@@ -119,32 +172,22 @@ func (n *Project) Enabled() bool {
 			Fetcher: n.getProjectData,
 		},
 		{
+			Name:    "lake",
+			Files:   []string{"lakefile.lean", "lakefile.toml"},
+			Fetcher: n.getLakePackage,
+		},
+		{
 			Name:    "powershell",
 			Files:   []string{"*.psd1"},
 			Fetcher: n.getPowerShellModuleData,
 		},
 	}
 
+	// allow files override
 	for _, item := range n.projects {
-		// allow files override
 		property := options.Option(fmt.Sprintf("%s_files", item.Name))
 		item.Files = n.options.StringArray(property, item.Files)
-
-		if !n.hasProjectFile(item) {
-			continue
-		}
-
-		data := item.Fetcher(*item)
-		if data == nil {
-			continue
-		}
-
-		n.ProjectData = *data
-		n.Type = item.Name
-		return true
 	}
-
-	return n.options.Bool(options.AlwaysEnabled, false)
 }
 
 func (n *Project) Template() string {
@@ -153,6 +196,38 @@ func (n *Project) Template() string {
 
 func (n *Project) hasProjectFile(p *ProjectItem) bool {
 	return slices.ContainsFunc(p.Files, n.env.HasFiles)
+}
+
+// Items not named in priority keep their original relative order and are appended
+// afterward; names in priority that don't match any item are ignored.
+func reorderByPriority(items []*ProjectItem, priority []string) []*ProjectItem {
+	byName := make(map[string]*ProjectItem, len(items))
+	for _, item := range items {
+		byName[item.Name] = item
+	}
+
+	promoted := make(map[string]bool, len(priority))
+	ordered := make([]*ProjectItem, 0, len(items))
+
+	for _, name := range priority {
+		item, ok := byName[name]
+		if !ok || promoted[name] {
+			continue
+		}
+
+		ordered = append(ordered, item)
+		promoted[name] = true
+	}
+
+	for _, item := range items {
+		if promoted[item.Name] {
+			continue
+		}
+
+		ordered = append(ordered, item)
+	}
+
+	return ordered
 }
 
 func (n *Project) getNodePackage(item ProjectItem) *ProjectData {
@@ -299,6 +374,28 @@ func (n *Project) getDotnetProject(item ProjectItem) *ProjectData {
 		target = values["TFM"]
 	}
 
+	if target == "" && (extension == ".sln" || extension == ".slnx") && n.options.Bool(ResolveTargetFromSolution, true) {
+		maxDepth := n.options.Int(SolutionSearchDepth, 2)
+		if projContent := n.findProjectFile(files, maxDepth); projContent != "" {
+			values = regex.FindNamedRegexMatch(tag, projContent)
+			if len(values) != 0 {
+				target = values["TFM"]
+			}
+		}
+	}
+
+	// mirror MSBuild's implicit import of Directory.Build.props when the
+	// project/solution itself does not define a TargetFramework
+	if target == "" {
+		if props, err := n.env.HasParentFilePath("Directory.Build.props", false); err == nil {
+			propsContent := n.env.FileContent(props.Path)
+			values = regex.FindNamedRegexMatch(tag, propsContent)
+			if len(values) != 0 {
+				target = values["TFM"]
+			}
+		}
+	}
+
 	if target == "" {
 		log.Error(fmt.Errorf("cannot extract TFM from %s project file", name))
 	}
@@ -307,6 +404,47 @@ func (n *Project) getDotnetProject(item ProjectItem) *ProjectData {
 		Target: target,
 		Name:   name,
 	}
+}
+
+// Scans rootEntries and their subdirectories breadth-first, up to maxDepth levels deep.
+// Paths are kept relative to pwd so FileContent resolves them the same way the caller does.
+func (n *Project) findProjectFile(rootEntries []fs.DirEntry, maxDepth int) string {
+	projectExts := []string{".csproj", ".fsproj", ".vbproj"}
+	pwd := n.env.Pwd()
+
+	var dirs []string
+	for _, entry := range rootEntries {
+		if entry.IsDir() {
+			dirs = append(dirs, entry.Name())
+			continue
+		}
+
+		// a project file can live next to the solution
+		if slices.Contains(projectExts, filepath.Ext(entry.Name())) {
+			return n.env.FileContent(entry.Name())
+		}
+	}
+
+	for depth := 1; depth <= maxDepth && len(dirs) > 0; depth++ {
+		var next []string
+
+		for _, dir := range dirs {
+			for _, entry := range n.env.LsDir(filepath.Join(pwd, dir)) {
+				if entry.IsDir() {
+					next = append(next, filepath.Join(dir, entry.Name()))
+					continue
+				}
+
+				if slices.Contains(projectExts, filepath.Ext(entry.Name())) {
+					return n.env.FileContent(filepath.Join(dir, entry.Name()))
+				}
+			}
+		}
+
+		dirs = next
+	}
+
+	return ""
 }
 
 func (n *Project) getPowerShellModuleData(_ ProjectItem) *ProjectData {
@@ -341,11 +479,56 @@ func (n *Project) getPowerShellModuleData(_ ProjectItem) *ProjectData {
 		case "ModuleVersion":
 			data.Version = value
 		case "RootModule":
-			data.Name = strings.TrimRight(value, ".psm1")
+			data.Name = strings.TrimSuffix(value, filepath.Ext(value))
 		}
 	}
 
 	return data
+}
+
+func (n *Project) getLakePackage(item ProjectItem) *ProjectData {
+	file := n.firstExistingFile(item.Files)
+	if len(file) == 0 {
+		return nil
+	}
+
+	if strings.HasSuffix(file, ".lean") {
+		return n.getLakeLeanPackage(file)
+	}
+
+	return n.getLakeTomlPackage(file)
+}
+
+func (n *Project) getLakeLeanPackage(file string) *ProjectData {
+	content := n.env.FileContent(file)
+
+	match := regex.FindNamedRegexMatch(`package\s+(?P<NAME>.+?)\s+where`, content)
+	name, ok := match["NAME"]
+	if !ok || len(name) == 0 {
+		return nil
+	}
+
+	// Strip guillemets (« U+00AB and » U+00BB) if present
+	name = strings.Trim(name, "\u00AB\u00BB")
+
+	return &ProjectData{
+		Name: strings.TrimSpace(name),
+	}
+}
+
+func (n *Project) getLakeTomlPackage(file string) *ProjectData {
+	content := n.env.FileContent(file)
+
+	var data LakeFileTOML
+	err := toml.Unmarshal([]byte(content), &data)
+	if err != nil {
+		n.Error = err.Error()
+		return nil
+	}
+
+	return &ProjectData{
+		Name: data.Name,
+	}
 }
 
 func (n *Project) getProjectData(item ProjectItem) *ProjectData {
@@ -390,7 +573,7 @@ func (n *Project) firstExistingFile(files []string) string {
 func (n *Project) parseJSONPackage(file string, allowJSONC bool) (*ProjectData, error) {
 	content := n.env.FileContent(file)
 	if allowJSONC && filepath.Ext(file) == ".jsonc" {
-		content = jsonutil.StripComments(content)
+		content = text.StripJSONComments(content)
 	}
 
 	var data ProjectData

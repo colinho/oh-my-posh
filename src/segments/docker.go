@@ -2,18 +2,19 @@ package segments
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
-
 	"slices"
+	"strings"
 
 	"github.com/jandedobbeleer/oh-my-posh/src/segments/options"
 )
 
 const (
-	// FetchContext is the property used to fetch the current docker context
-	FetchContext options.Option = "fetch_context"
-
-	defaultDockerContext = "default"
+	FetchContext  options.Option = "fetch_context"
+	DockerCommand options.Option = "docker_command"
+	// Filter applies to docker ps results in environment mode, see https://docs.docker.com/reference/cli/docker/container/ls/#filter
+	Filter options.Option = "filter"
 )
 
 type DockerConfig struct {
@@ -22,8 +23,19 @@ type DockerConfig struct {
 
 type Docker struct {
 	Base
+	command    *cmd
+	Context    string
+	Containers []Container
+}
 
-	Context string
+type Container struct {
+	ID      string
+	Image   string
+	Command string
+	Created string
+	Status  string
+	Ports   string
+	Names   string
 }
 
 func (d *Docker) Template() string {
@@ -47,7 +59,7 @@ func (d *Docker) configFiles() []string {
 	return files
 }
 
-func (d *Docker) Enabled() bool {
+func (d *Docker) extensions() []string {
 	extensions := []string{
 		"compose.yml",
 		"compose.yaml",
@@ -56,14 +68,34 @@ func (d *Docker) Enabled() bool {
 		"Dockerfile",
 	}
 
-	extensions = d.options.StringArray(LanguageExtensions, extensions)
+	return d.options.StringArray(LanguageExtensions, extensions)
+}
 
+// Activation gates the files display mode on its file globs (the presence
+// check formerly duplicated in Enabled). The context and environment modes
+// stay ungated: they enable through environment variables that may be unset
+// while a context is still configured in $HOME/.docker/config.json, which no
+// cwd-scoped condition expresses.
+func (d *Docker) Activation() Activation {
+	if d.options.String(DisplayMode, DisplayModeContext) != DisplayModeFiles {
+		return Activation{Always: true}
+	}
+
+	return Activation{FileGlobs: d.extensions()}
+}
+
+func (d *Docker) Enabled() bool {
 	displayMode := d.options.String(DisplayMode, DisplayModeContext)
+
 	switch displayMode {
 	case DisplayModeContext:
 		return d.fetchContext()
 	case DisplayModeFiles:
-		if !slices.ContainsFunc(extensions, d.env.HasFiles) {
+		// Re-verified even though a passing gate implies a match: Force and
+		// pinned data bypass the gate, so Enabled must stay
+		// standalone-correct. The re-check is a hit on the memoized
+		// directory listing.
+		if !slices.ContainsFunc(d.extensions(), d.env.HasFiles) {
 			return false
 		}
 
@@ -73,6 +105,40 @@ func (d *Docker) Enabled() bool {
 		}
 
 		return true
+	case DisplayModeEnvironment:
+		// always fetch context first
+		_ = d.fetchContext()
+
+		if d.Context == "" {
+			d.Context = defaultStr
+		}
+
+		dockerCommand := d.options.String(DockerCommand, "docker")
+		if !d.env.HasCommand(dockerCommand) {
+			return false
+		}
+
+		filter := d.options.String(Filter, "")
+		// Use Go template formatting with tab separation
+		format := `{{.ID}}\t{{.Image}}\t{{.Command}}\t{{.CreatedAt}}\t{{.Status}}\t{{.Ports}}\t{{.Names}}`
+		args := []string{"ps", "--format", format}
+		if len(filter) > 0 {
+			args = append(args, "--filter", filter)
+		}
+
+		d.command = &cmd{
+			executable: dockerCommand,
+			args:       args,
+		}
+
+		containers, err := d.fetchContainers()
+		if err != nil {
+			return false
+		}
+
+		d.Containers = containers
+
+		return len(d.Containers) > 0
 	}
 
 	return false
@@ -84,7 +150,7 @@ func (d *Docker) fetchContext() bool {
 	// Return the current context if it is not empty and not `default`
 	for _, v := range d.envVars() {
 		context := d.env.Getenv(v)
-		if len(context) > 0 && context != defaultDockerContext {
+		if len(context) > 0 && context != defaultStr {
 			d.Context = context
 			return true
 		}
@@ -103,11 +169,50 @@ func (d *Docker) fetchContext() bool {
 			continue
 		}
 
-		if len(cfg.CurrentContext) > 0 && cfg.CurrentContext != defaultDockerContext {
+		if len(cfg.CurrentContext) > 0 && cfg.CurrentContext != defaultStr {
 			d.Context = cfg.CurrentContext
 			return true
 		}
 	}
 
 	return false
+}
+
+func (d *Docker) fetchContainers() ([]Container, error) {
+	if d.command == nil {
+		return nil, nil
+	}
+
+	output, err := d.env.RunCommand(d.command.executable, d.command.args...)
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
+		return nil, nil
+	}
+
+	containers := make([]Container, 0, len(lines))
+
+	for i, line := range lines {
+		line = strings.TrimRight(line, "\r")
+		fields := strings.Split(line, "\t")
+
+		if len(fields) != 7 {
+			return nil, fmt.Errorf("invalid docker ps output on line %d: expected 7 fields, got %d", i+1, len(fields))
+		}
+
+		containers = append(containers, Container{
+			ID:      fields[0],
+			Image:   fields[1],
+			Command: fields[2],
+			Created: fields[3],
+			Status:  fields[4],
+			Ports:   fields[5],
+			Names:   fields[6],
+		})
+	}
+
+	return containers, nil
 }

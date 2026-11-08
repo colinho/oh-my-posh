@@ -10,12 +10,13 @@ import (
 	"github.com/jandedobbeleer/oh-my-posh/src/build"
 	"github.com/jandedobbeleer/oh-my-posh/src/cache"
 	"github.com/jandedobbeleer/oh-my-posh/src/cli/upgrade"
+	"github.com/jandedobbeleer/oh-my-posh/src/cli/upgrade/tui"
+	"github.com/jandedobbeleer/oh-my-posh/src/cmdtree"
 	"github.com/jandedobbeleer/oh-my-posh/src/config"
 	"github.com/jandedobbeleer/oh-my-posh/src/log"
 	"github.com/jandedobbeleer/oh-my-posh/src/runtime"
 	"github.com/jandedobbeleer/oh-my-posh/src/terminal"
 	"github.com/jandedobbeleer/oh-my-posh/src/text"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -23,13 +24,12 @@ var (
 	auto  bool
 )
 
-// upgradeCmd represents the upgrade command
-var upgradeCmd = &cobra.Command{
+var upgradeCmd = &cmdtree.Command{
 	Use:   "upgrade",
 	Short: "Upgrade when a new version is available.",
 	Long:  "Upgrade when a new version is available.",
-	Args:  cobra.NoArgs,
-	Run: func(_ *cobra.Command, _ []string) {
+	Args:  cmdtree.NoArgs,
+	Run: func(_ *cmdtree.Command, _ []string) {
 		var startTime time.Time
 
 		if debug {
@@ -66,21 +66,23 @@ var upgradeCmd = &cobra.Command{
 		cache.Init(sh, cache.Persist)
 
 		// Only respect the cache interval when using --auto flag
-		if _, OK := cache.Get[string](cache.Device, upgrade.CACHEKEY); OK && auto {
+		if _, OK := cache.Device.Get[string](upgrade.CACHEKEY); OK && auto {
 			log.Debug("upgrade check already performed recently, skipping")
 			return
 		}
 
 		terminal.Init(sh)
-		fmt.Print(terminal.StartProgress())
 
 		cfg := config.Get(configFlag, false)
+		cfg.TerminalFeatures.Apply()
+
+		fmt.Print(terminal.StartProgress())
 
 		defer func() {
 			fmt.Print(terminal.StopProgress())
 
 			// Set the cache key after any upgrade check to prevent redundant checks
-			cache.Set(cache.Device, upgrade.CACHEKEY, "true", cfg.Upgrade.Interval)
+			cache.Device.Set(upgrade.CACHEKEY, "true", cfg.Upgrade.Interval)
 
 			cache.Close()
 
@@ -134,7 +136,7 @@ var upgradeCmd = &cobra.Command{
 }
 
 func executeUpgrade(cfg *upgrade.Config) int {
-	err := upgrade.Run(cfg)
+	err := tui.Run(cfg)
 	if err == nil {
 		return 0
 	}

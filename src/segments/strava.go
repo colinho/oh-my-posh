@@ -7,9 +7,9 @@ import (
 
 	"github.com/jandedobbeleer/oh-my-posh/src/runtime/http"
 	"github.com/jandedobbeleer/oh-my-posh/src/segments/options"
+	"github.com/jandedobbeleer/oh-my-posh/src/template"
 )
 
-// StravaAPI is a wrapper around http.Oauth
 type StravaAPI interface {
 	GetActivities() ([]*StravaData, error)
 }
@@ -20,15 +20,14 @@ type stravaAPI struct {
 
 func (s *stravaAPI) GetActivities() ([]*StravaData, error) {
 	url := "https://www.strava.com/api/v3/athlete/activities?page=1&per_page=1"
-	return http.OauthResult[[]*StravaData](&s.OAuthRequest, url, nil)
+	return s.Result[[]*StravaData](url, nil)
 }
 
-// segment struct, makes templating easier
 type Strava struct {
 	Base
 
 	api   StravaAPI
-	Icon  string
+	Icon  template.Markup
 	Ago   string
 	Error string
 	URL   string
@@ -50,7 +49,6 @@ const (
 	noActivitiesFound = "No activities found"
 )
 
-// StravaData struct contains the API data
 type StravaData struct {
 	StartDate            time.Time `json:"start_date"`
 	Type                 string    `json:"type"`
@@ -104,10 +102,8 @@ func (s *Strava) initAPI() {
 		SegmentName:     "strava",
 		AccessToken:     s.options.Template(options.AccessToken, "", s),
 		RefreshToken:    s.options.Template(options.RefreshToken, "", s),
-		Request: http.Request{
-			Env:         s.env,
-			HTTPTimeout: s.options.Int(options.HTTPTimeout, options.DefaultHTTPTimeout),
-		},
+		Env:             s.env,
+		HTTPTimeout:     s.options.Int(options.HTTPTimeout, options.DefaultHTTPTimeout),
 	}
 
 	s.api = &stravaAPI{
@@ -128,22 +124,19 @@ func (s *Strava) getAgo() string {
 	return fmt.Sprintf("%d", s.Hours) + string("h")
 }
 
-func (s *Strava) getActivityIcon() string {
+func (s *Strava) getActivityIcon() template.Markup {
 	switch s.Type {
 	case "VirtualRide":
 		fallthrough
 	case "Ride":
-		return s.options.String(RideIcon, "\uf206")
+		return s.options.Markup(RideIcon, "\uf206")
 	case "Run":
-		return s.options.String(RunIcon, "\ue213")
-	case "NordicSki":
-	case "AlpineSki":
-	case "BackcountrySki":
-		return s.options.String(SkiingIcon, "\ue213")
+		return s.options.Markup(RunIcon, "\ue213")
+	case "NordicSki", "AlpineSki", "BackcountrySki":
+		return s.options.Markup(SkiingIcon, "\ue213")
 	case "WorkOut":
-		return s.options.String(WorkOutIcon, "\ue213")
+		return s.options.Markup(WorkOutIcon, "\ue213")
 	default:
-		return s.options.String(UnknownActivityIcon, "\ue213")
+		return s.options.Markup(UnknownActivityIcon, "\ue213")
 	}
-	return s.options.String(UnknownActivityIcon, "\ue213")
 }

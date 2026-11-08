@@ -1,9 +1,9 @@
-//go:build !windows
+//go:build !windows && !js
 
 package runtime
 
 import (
-	"os"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -13,28 +13,26 @@ import (
 	"github.com/shirou/gopsutil/v4/host"
 	mem "github.com/shirou/gopsutil/v4/mem"
 	terminal "github.com/wayneashleyberry/terminal-dimensions"
-	"golang.org/x/sys/unix"
 )
-
-func (term *Terminal) Root() bool {
-	defer log.Trace(time.Now())
-	return os.Geteuid() == 0
-}
 
 func (term *Terminal) QueryWindowTitles(_, _ string) (string, error) {
 	return "", &NotImplemented{}
 }
 
+func (term *Terminal) QueryMediaPlayer(_ string) (*MediaInfo, error) {
+	return nil, &NotImplemented{}
+}
+
 func (term *Terminal) IsWsl() bool {
 	defer log.Trace(time.Now())
 	const key = "is_wsl"
-	if val, found := cache.Get[bool](cache.Device, key); found {
+	if val, found := cache.Device.Get[bool](key); found {
 		return val
 	}
 
 	var val bool
 	defer func() {
-		cache.Set(cache.Device, key, val, cache.INFINITE)
+		cache.Device.Set(key, val, cache.INFINITE)
 	}()
 
 	val = term.HasCommand("wslpath")
@@ -65,18 +63,12 @@ func (term *Terminal) TerminalWidth() (int, error) {
 	}
 
 	width, err := terminal.Width()
-	if err != nil {
-		log.Error(err)
+	if width == 0 {
+		width, err = resolveTerminalWidth(width, err, term.Getenv("COLUMNS"))
 	}
 
-	// fetch width from the environment variable
-	// in case the terminal width is not available
-	if width == 0 {
-		i, err := strconv.Atoi(term.Getenv("COLUMNS"))
-		if err != nil {
-			log.Error(err)
-		}
-		width = uint(i)
+	if err != nil {
+		log.Error(err)
 	}
 
 	term.CmdFlags.TerminalWidth = int(width)
@@ -85,15 +77,31 @@ func (term *Terminal) TerminalWidth() (int, error) {
 	return term.CmdFlags.TerminalWidth, err
 }
 
+func resolveTerminalWidth(width uint, terminalErr error, columns string) (uint, error) {
+	if width != 0 {
+		return width, terminalErr
+	}
+
+	columnWidth, err := strconv.Atoi(columns)
+	if err != nil {
+		return 0, errors.Join(terminalErr, err)
+	}
+	if columnWidth <= 0 {
+		return 0, errors.Join(terminalErr, errors.New("terminal width must be greater than zero"))
+	}
+
+	return uint(columnWidth), nil
+}
+
 func (term *Terminal) Platform() string {
 	const key = "environment_platform"
-	if val, found := cache.Get[string](cache.Device, key); found {
+	if val, found := cache.Device.Get[string](key); found {
 		return val
 	}
 
 	var platform string
 	defer func() {
-		cache.Set(cache.Device, key, platform, cache.INFINITE)
+		cache.Device.Set(key, platform, cache.INFINITE)
 	}()
 
 	if wsl := term.Getenv("WSL_DISTRO_NAME"); len(wsl) != 0 {
@@ -113,14 +121,20 @@ func (term *Terminal) Platform() string {
 func (term *Terminal) getSpecialLinuxDistros(platform string) string {
 	lsbInfo := term.FileContent("/etc/lsb-release")
 
-	if platform == "arch" && strings.Contains(strings.ToLower(lsbInfo), "manjaro") {
-		// validate for Manjaro
+	if platform == "debian" && strings.Contains(strings.ToLower(lsbInfo), "zorin") {
+		return "zorin"
+	}
+
+	if platform != "arch" {
+		return platform
+	}
+
+	if strings.Contains(strings.ToLower(lsbInfo), "manjaro") {
 		return "manjaro"
 	}
 
-	if platform == "debian" && strings.Contains(strings.ToLower(lsbInfo), "zorin") {
-		// validate for Zorin OS
-		return "zorin"
+	if strings.Contains(strings.ToLower(lsbInfo), "artix") {
+		return "artix"
 	}
 
 	return platform
@@ -151,11 +165,6 @@ func (term *Terminal) ConvertToLinuxPath(input string) string {
 		return linuxPath
 	}
 	return input
-}
-
-func (term *Terminal) DirIsWritable(input string) bool {
-	defer log.Trace(time.Now(), input)
-	return unix.Access(input, unix.W_OK) == nil
 }
 
 func (term *Terminal) Connection(_ ConnectionType) (*Connection, error) {
@@ -192,8 +201,27 @@ func (term *Terminal) Memory() (*Memory, error) {
 		log.Error(err)
 	}
 
-	m.SwapTotalMemory = swapStat.Total
-	m.SwapFreeMemory = swapStat.Free
-	m.SwapPercentUsed = swapStat.UsedPercent
+	setSwapMemory(m, swapStat, memStat)
 	return m, nil
+}
+
+func setSwapMemory(memory *Memory, swapStat *mem.SwapMemoryStat, memStat *mem.VirtualMemoryStat) {
+	if swapStat != nil {
+		memory.SwapTotalMemory = swapStat.Total
+		memory.SwapFreeMemory = swapStat.Free
+		memory.SwapPercentUsed = swapStat.UsedPercent
+		return
+	}
+
+	memory.SwapTotalMemory = memStat.SwapTotal
+	memory.SwapFreeMemory = memStat.SwapFree
+	if memory.SwapTotalMemory == 0 {
+		return
+	}
+
+	used := float64(memory.SwapTotalMemory) - float64(memory.SwapFreeMemory)
+	if used < 0 {
+		used = 0
+	}
+	memory.SwapPercentUsed = used / float64(memory.SwapTotalMemory) * 100
 }

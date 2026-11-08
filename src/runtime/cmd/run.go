@@ -3,18 +3,25 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
 	"strings"
 
 	runjobs "github.com/jandedobbeleer/oh-my-posh/src/runtime/jobs"
 )
 
-// Run executes a command while ensuring the OS process is started in its own
-// process group; the started process is recorded so callers can request a
-// cleanup (KillGoroutineChildren) if they decide to abort waiting for the
-// goroutine that spawned it.
+// Starts the process in its own process group and records it so callers can request
+// cleanup via KillGoroutineChildren if they abort waiting for the spawning goroutine.
 func Run(command string, args ...string) (string, error) {
+	return RunWithEnv(command, nil, args...)
+}
+
+func RunWithEnv(command string, envs []string, args ...string) (string, error) {
 	cmd := exec.CommandContext(context.Background(), command, args...)
+	if len(envs) > 0 {
+		cmd.Env = append(os.Environ(), envs...)
+	}
+
 	var out bytes.Buffer
 	var errb bytes.Buffer
 	cmd.Stdout = &out
@@ -42,9 +49,5 @@ func Run(command string, args ...string) (string, error) {
 		return output, err
 	}
 
-	result := strings.TrimSpace(out.String())
-	if result == "" {
-		result = strings.TrimSpace(errb.String())
-	}
-	return result, nil
+	return strings.TrimSpace(out.String()), nil
 }

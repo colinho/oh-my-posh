@@ -3,24 +3,20 @@ package segments
 import (
 	"github.com/jandedobbeleer/oh-my-posh/src/runtime"
 	"github.com/jandedobbeleer/oh-my-posh/src/segments/options"
+	"github.com/jandedobbeleer/oh-my-posh/src/template"
 )
 
 type Os struct {
 	Base
 
-	Icon string
+	Icon template.Markup
 }
 
 const (
-	// MacOS the string/icon to use for MacOS
-	MacOS options.Option = "macos"
-	// Linux the string/icon to use for linux
-	Linux options.Option = "linux"
-	// Windows the string/icon to use for windows
-	Windows options.Option = "windows"
-	// Android the string/icon to use for android
-	Android options.Option = "android"
-	// DisplayDistroName display the distro name or not
+	MacOS             options.Option = "macos"
+	Linux             options.Option = "linux"
+	Windows           options.Option = "windows"
+	Android           options.Option = "android"
 	DisplayDistroName options.Option = "display_distro_name"
 )
 
@@ -32,26 +28,31 @@ func (oi *Os) Enabled() bool {
 	goos := oi.env.GOOS()
 	switch goos {
 	case runtime.WINDOWS:
-		oi.Icon = oi.options.String(Windows, "\uE62A")
+		oi.Icon = oi.options.Markup(Windows, "\uE62A")
 	case runtime.DARWIN:
-		oi.Icon = oi.options.String(MacOS, "\uF179")
+		oi.Icon = oi.options.Markup(MacOS, "\uF179")
 	case runtime.LINUX, runtime.FREEBSD:
 		pf := oi.env.Platform()
 		displayDistroName := oi.options.Bool(DisplayDistroName, false)
 		if displayDistroName {
-			oi.Icon = oi.options.String(options.Option(pf), pf)
+			icon := oi.options.String(options.Option(pf), "")
+			if icon == "" {
+				oi.Icon = template.EscapeMarkup(pf)
+				break
+			}
+			oi.Icon = template.RawMarkup(icon)
 			break
 		}
 		oi.Icon = oi.getDistroIcon(pf)
 	case runtime.ANDROID:
-		oi.Icon = oi.options.String(Android, "\ue70e")
+		oi.Icon = oi.options.Markup(Android, "\ue70e")
 	default:
-		oi.Icon = goos
+		oi.Icon = template.EscapeMarkup(goos)
 	}
 	return true
 }
 
-func (oi *Os) getDistroIcon(distro string) string {
+func (oi *Os) getDistroIcon(distro string) template.Markup {
 	iconMap := map[string]string{
 		"alma":                "\uf31d",
 		"almalinux":           "\uf31d",
@@ -60,6 +61,7 @@ func (oi *Os) getDistroIcon(distro string) string {
 		"android":             "\ue70e",
 		"aosc":                "\uf301",
 		"arch":                "\uf303",
+		"artix":               "\uf31f",
 		"centos":              "\uf304",
 		"coreos":              "\uf305",
 		"debian":              "\uf306",
@@ -89,13 +91,13 @@ func (oi *Os) getDistroIcon(distro string) string {
 	}
 
 	if icon, ok := iconMap[distro]; ok {
-		return oi.options.String(options.Option(distro), icon)
+		return oi.options.Markup(options.Option(distro), icon)
 	}
 
 	icon := oi.options.String(options.Option(distro), "")
 	if len(icon) > 0 {
-		return icon
+		return template.RawMarkup(icon)
 	}
 
-	return oi.options.String(Linux, "\uF17C")
+	return oi.options.Markup(Linux, "\uF17C")
 }

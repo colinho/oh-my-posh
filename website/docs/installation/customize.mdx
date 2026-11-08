@@ -1,7 +1,7 @@
 ---
 id: customize
 title: Customize
-sidebar_label: 🧩 Customize
+sidebar_label: Customize
 ---
 
 import Tabs from "@theme/Tabs";
@@ -55,6 +55,7 @@ to reflect your configuration file, local or remote.
     { label: 'nu', value: 'nu', },
     { label: 'powershell', value: 'powershell', },
     { label: 'xonsh', value: 'xonsh', },
+    { label: 'yash', value: 'yash', },
     { label: 'zsh', value: 'zsh', },
   ]
 }>
@@ -187,6 +188,21 @@ exec xonsh
 ```
 
 </TabItem>
+<TabItem value="yash">
+
+Adjust the Oh My Posh init line in `~/.yashrc` by adding the `--config` flag with the location of your configuration.
+
+```bash
+eval "$(oh-my-posh init yash --config ~/jandedobbeleer.omp.json)"
+```
+
+Once altered, reload your profile for the changes to take effect.
+
+```bash
+exec yash
+```
+
+</TabItem>
 <TabItem value="zsh">
 
 Adjust the Oh My Posh init line in `~/.zshrc` by adding the `--config` flag with the location of your configuration.
@@ -262,6 +278,6 @@ segments section covers how to configure each available segment.
 
 [configuration]: configuration/general.mdx
 [prompt]: prompt.mdx
-[jandedobbeleer]: /docs/themes#jandedobbeleer
+[jandedobbeleer]: https://github.com/JanDeDobbeleer/oh-my-posh/blob/main/themes/jandedobbeleer.omp.json
 [sign]: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing?view=powershell-7.5#methods-of-signing-scripts
 [transient prompt]: /docs/configuration/transient

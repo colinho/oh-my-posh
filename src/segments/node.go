@@ -6,25 +6,21 @@ import (
 
 	"github.com/jandedobbeleer/oh-my-posh/src/regex"
 	"github.com/jandedobbeleer/oh-my-posh/src/segments/options"
+	"github.com/jandedobbeleer/oh-my-posh/src/template"
 )
 
 type Node struct {
-	PackageManagerIcon string
+	PackageManagerIcon template.Markup
 	PackageManagerName string
 
 	Language
 }
 
 const (
-	// PnpmIcon illustrates PNPM is used
-	PnpmIcon options.Option = "pnpm_icon"
-	// YarnIcon illustrates Yarn is used
-	YarnIcon options.Option = "yarn_icon"
-	// NPMIcon illustrates NPM is used
-	NPMIcon options.Option = "npm_icon"
-	// BunIcon illustrates Bun is used
-	BunIcon options.Option = "bun_icon"
-	// FetchPackageManager shows if Bun, NPM, PNPM, or Yarn is used
+	PnpmIcon            options.Option = "pnpm_icon"
+	YarnIcon            options.Option = "yarn_icon"
+	NPMIcon             options.Option = "npm_icon"
+	BunIcon             options.Option = "bun_icon"
 	FetchPackageManager options.Option = "fetch_package_manager"
 )
 
@@ -33,20 +29,36 @@ func (n *Node) Template() string {
 }
 
 func (n *Node) Enabled() bool {
+	n.loadSpec()
+
+	return n.Language.Enabled()
+}
+
+// Activation implements the activation gate; see Language.activation.
+func (n *Node) Activation() Activation {
+	n.loadSpec()
+
+	return n.activation()
+}
+
+func (n *Node) loadSpec() {
 	n.extensions = []string{"*.js", "*.ts", fileName, ".nvmrc", "pnpm-workspace.yaml", ".pnpmfile.cjs", ".vue"}
 	n.tooling = map[string]*cmd{
+		// node --version reports the resolved node binary's own build - true
+		// whether that binary comes straight from PATH or from an nvm/fnm/
+		// volta-style manager that swaps PATH per version (a different
+		// resolved path, not a shared shim).
 		nodeToolName: {
-			executable: nodeToolName,
-			args:       []string{versionFlagArg},
-			regex:      `(?:v(?P<version>((?P<major>[0-9]+).(?P<minor>[0-9]+).(?P<patch>[0-9]+))))`,
+			executable:       nodeToolName,
+			args:             []string{versionFlagArg},
+			regex:            `(?:v(?P<version>((?P<major>[0-9]+).(?P<minor>[0-9]+).(?P<patch>[0-9]+))))`,
+			versionCacheable: true,
 		},
 	}
 	n.defaultTooling = []string{nodeToolName}
 	n.versionURLTemplate = "https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V{{ .Major }}.md#{{ .Full }}"
 	n.Language.matchesVersionFile = n.matchesVersionFile
 	n.Language.loadContext = n.loadContext
-
-	return n.Language.Enabled()
 }
 
 func (n *Node) loadContext() {
@@ -101,7 +113,7 @@ func (n *Node) loadContext() {
 	for _, pm := range packageManagerDefinitions {
 		if n.env.HasFiles(pm.fileName) {
 			n.PackageManagerName = pm.name
-			n.PackageManagerIcon = n.options.String(pm.iconProperty, pm.defaultIcon)
+			n.PackageManagerIcon = n.options.Markup(pm.iconProperty, pm.defaultIcon)
 			break
 		}
 	}

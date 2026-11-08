@@ -6,6 +6,7 @@ import (
 	"github.com/jandedobbeleer/oh-my-posh/src/runtime"
 	"github.com/jandedobbeleer/oh-my-posh/src/runtime/mock"
 	"github.com/jandedobbeleer/oh-my-posh/src/segments/options"
+	"github.com/jandedobbeleer/oh-my-posh/src/template"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -265,16 +266,14 @@ func TestPlasticParseSmartbranchSelector(t *testing.T) {
 func TestPlasticStatus(t *testing.T) {
 	p := &Plastic{
 		Status: &PlasticStatus{
-			ScmStatus: ScmStatus{
-				Added:    1,
-				Modified: 2,
-				Deleted:  3,
-				Moved:    4,
-				Unmerged: 5,
-			},
+			Added:    1,
+			Modified: 2,
+			Deleted:  3,
+			Moved:    4,
+			Unmerged: 5,
 		},
 	}
-	status := p.Status.String()
+	status := p.Status.String().String()
 	expected := "+1 ~2 -3 >4 x5"
 	assert.Equal(t, expected, status)
 }
@@ -291,7 +290,7 @@ func TestPlasticTemplateString(t *testing.T) {
 			Expected: "/main",
 			Template: "{{ .Selector }}",
 			Plastic: &Plastic{
-				Selector: "/main",
+				Selector: template.RawMarkup("/main"),
 				Behind:   false,
 			},
 		},
@@ -300,14 +299,12 @@ func TestPlasticTemplateString(t *testing.T) {
 			Expected: "/main \uF044 +2 ~3 -1 >4",
 			Template: "{{ .Selector }}{{ if .Status.Changed }} \uF044 {{ .Status.String }}{{ end }}",
 			Plastic: &Plastic{
-				Selector: "/main",
+				Selector: template.RawMarkup("/main"),
 				Status: &PlasticStatus{
-					ScmStatus: ScmStatus{
-						Added:    2,
-						Modified: 3,
-						Deleted:  1,
-						Moved:    4,
-					},
+					Added:    2,
+					Modified: 3,
+					Deleted:  1,
+					Moved:    4,
 				},
 			},
 		},
@@ -316,19 +313,32 @@ func TestPlasticTemplateString(t *testing.T) {
 			Expected: "/main",
 			Template: "{{ .Selector }}{{ if .Status.Changed }} \uF044 {{ .Status.String }}{{ end }}",
 			Plastic: &Plastic{
-				Selector: "/main",
+				Selector: template.RawMarkup("/main"),
 				Status:   &PlasticStatus{},
 			},
 		},
 	}
 
 	for _, tc := range cases {
-		props := options.Map{
-			FetchStatus: true,
-		}
-		tc.Plastic.options = props
+		tc.Plastic.options = options.Map{}
+		// the status probe is derived from template references now
+		tc.Plastic.SetReferencedFields(template.RefSet{Fields: plasticStatusFields, Analyzable: true})
 		env := new(mock.Environment)
 		tc.Plastic.env = env
 		assert.Equal(t, tc.Expected, renderTemplate(env, tc.Template, tc.Plastic), tc.Case)
 	}
+}
+
+func TestPlasticInitializesBaseSegment(t *testing.T) {
+	env := new(mock.Environment)
+
+	p := &Plastic{}
+	p.Init(options.Map{}, env)
+
+	// Plastic used to shadow Base.Init without setting Base.Segment, making
+	// SetText panic with a nil pointer dereference once the segment rendered.
+	p.SetText("main")
+	p.SetIndex(1)
+
+	assert.Equal(t, "main", p.Text().String())
 }

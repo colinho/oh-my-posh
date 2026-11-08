@@ -11,8 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// mockLocaleCache is a simple in-memory localeCache implementation used in
-// tests to avoid touching the real device cache store.
+// Used in tests to avoid touching the real device cache store.
 type mockLocaleCache struct {
 	data map[string]string
 }
@@ -30,8 +29,6 @@ func (m *mockLocaleCache) set(key, val string) {
 	m.data[key] = val
 }
 
-// setupLocaleTest wires up a fresh mock cache and registers cleanup via
-// t.Cleanup to restore both the store and the resolver to their original values.
 func setupLocaleTest(t *testing.T) {
 	t.Helper()
 
@@ -49,8 +46,6 @@ func setupLocaleTest(t *testing.T) {
 	})
 }
 
-// TestWindowsPatternToGoLayout verifies the Windows date/time format → Go layout converter.
-//
 //nolint:dupl
 func TestWindowsPatternToGoLayout(t *testing.T) {
 	cases := []struct {
@@ -76,8 +71,6 @@ func TestWindowsPatternToGoLayout(t *testing.T) {
 	}
 }
 
-// TestPosixPatternToGoLayout verifies the POSIX strftime → Go layout converter.
-//
 //nolint:dupl
 func TestPosixPatternToGoLayout(t *testing.T) {
 	cases := []struct {
@@ -103,8 +96,6 @@ func TestPosixPatternToGoLayout(t *testing.T) {
 	}
 }
 
-// TestLocaleShortDateFallback verifies that a zero-value resolver still
-// produces ISO 8601 output rather than an empty string.
 func TestLocaleShortDateFallback(t *testing.T) {
 	mockEnv := new(mock.Environment)
 	mockEnv.On("Shell").Return("foo")
@@ -120,13 +111,11 @@ func TestLocaleShortDateFallback(t *testing.T) {
 
 	tmpl := `{{ localeShortDate .T }}`
 	ctx := struct{ T time.Time }{T: time.Unix(0, 0).UTC()}
-	got, err := Render(tmpl, ctx)
+	got, err := RenderTrusted(tmpl, ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, "1970-01-01", got)
 }
 
-// TestLocaleShortTimeFallback verifies that a zero-value resolver still
-// produces 24-hour output rather than an empty string.
 func TestLocaleShortTimeFallback(t *testing.T) {
 	mockEnv := new(mock.Environment)
 	mockEnv.On("Shell").Return("foo")
@@ -142,13 +131,11 @@ func TestLocaleShortTimeFallback(t *testing.T) {
 
 	tmpl := `{{ localeShortTime .T }}`
 	ctx := struct{ T time.Time }{T: time.Unix(0, 0).UTC()}
-	got, err := Render(tmpl, ctx)
+	got, err := RenderTrusted(tmpl, ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, "00:00", got)
 }
 
-// TestLocaleShortDateWithISOLayout exercises the full template stack with a
-// known locale layout so we can verify the output without touching the OS.
 func TestLocaleShortDateWithISOLayout(t *testing.T) {
 	mockEnv := new(mock.Environment)
 	mockEnv.On("Shell").Return("foo")
@@ -165,12 +152,11 @@ func TestLocaleShortDateWithISOLayout(t *testing.T) {
 	// knownEpoch = 2019-06-13 20:39:39 UTC (from date_test.go)
 	tmpl := `{{ localeShortDate .T }}`
 	ctx := struct{ T time.Time }{T: time.Unix(knownEpoch, 0).UTC()}
-	got, err := Render(tmpl, ctx)
+	got, err := RenderTrusted(tmpl, ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, "2019-06-13", got)
 }
 
-// TestLocaleShortTimeWith24hLayout exercises the time function with a known layout.
 func TestLocaleShortTimeWith24hLayout(t *testing.T) {
 	mockEnv := new(mock.Environment)
 	mockEnv.On("Shell").Return("foo")
@@ -186,12 +172,11 @@ func TestLocaleShortTimeWith24hLayout(t *testing.T) {
 
 	tmpl := `{{ localeShortTime .T }}`
 	ctx := struct{ T time.Time }{T: time.Unix(knownEpoch, 0).UTC()}
-	got, err := Render(tmpl, ctx)
+	got, err := RenderTrusted(tmpl, ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, "20:39", got)
 }
 
-// TestLocaleShortDateWith12hUSLayout verifies a US-style locale layout.
 func TestLocaleShortDateWith12hUSLayout(t *testing.T) {
 	mockEnv := new(mock.Environment)
 	mockEnv.On("Shell").Return("foo")
@@ -207,7 +192,7 @@ func TestLocaleShortDateWith12hUSLayout(t *testing.T) {
 
 	tmpl := `{{ localeShortDate .T }} {{ localeShortTime .T }}`
 	ctx := struct{ T time.Time }{T: time.Unix(knownEpoch, 0).UTC()}
-	got, err := Render(tmpl, ctx)
+	got, err := RenderTrusted(tmpl, ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, "6/13/2019 8:39 PM", got)
 }

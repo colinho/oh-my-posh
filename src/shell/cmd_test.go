@@ -26,7 +26,10 @@ if clink.onbeginedit then
 else
     os.execute(string.format('"%s" notice', omp_executable))
 end
-rprompt_enabled = true`
+rprompt_enabled = true
+if os.getenv("POSH_DISABLE_STREAMING") == nil then
+    serve_enabled = true
+end`
 
 	assert.Equal(t, want, got)
 }

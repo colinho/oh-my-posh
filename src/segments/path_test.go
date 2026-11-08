@@ -1,6 +1,7 @@
 package segments
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ func renderTemplateNoTrimSpace(env *mock.Environment, segmentTemplate string, co
 	}
 	template.Init(env, nil, nil)
 
-	text, err := template.Render(segmentTemplate, context)
+	text, err := template.RenderTrusted(segmentTemplate, context)
 	if err != nil {
 		return err.Error()
 	}
@@ -201,11 +202,12 @@ func TestFullAndFolderPath(t *testing.T) {
 }
 
 type testFullPathCustomMappedLocationsCase struct {
-	Pwd             string
-	MappedLocations map[string]string
-	GOOS            string
-	PathSeparator   string
-	Expected        string
+	Pwd                        string
+	MappedLocations            map[string]string
+	GOOS                       string
+	PathSeparator              string
+	Expected                   string
+	MappedLocationsRegexExpand bool
 }
 
 func TestFullPathCustomMappedLocations(t *testing.T) {
@@ -219,6 +221,7 @@ func TestFullPathCustomMappedLocations(t *testing.T) {
 		}
 
 		env.On("GOOS").Return(tc.GOOS)
+		env.On("IsWsl").Return(false)
 
 		if tc.PathSeparator == "" {
 			tc.PathSeparator = "/"
@@ -237,9 +240,10 @@ func TestFullPathCustomMappedLocations(t *testing.T) {
 		template.Init(env, nil, nil)
 
 		props := options.Map{
-			options.Style:          Full,
-			MappedLocationsEnabled: false,
-			MappedLocations:        tc.MappedLocations,
+			options.Style:              Full,
+			MappedLocationsEnabled:     false,
+			MappedLocations:            tc.MappedLocations,
+			MappedLocationsRegexExpand: tc.MappedLocationsRegexExpand,
 		}
 
 		path := &Path{}
@@ -354,9 +358,7 @@ func TestGetFolderSeparator(t *testing.T) {
 		env.On("Shell").Return(shell.GENERIC)
 
 		template.Cache = &cache.Template{
-			SimpleTemplate: cache.SimpleTemplate{
-				Shell: "bash",
-			},
+			Shell: "bash",
 		}
 		template.Init(env, nil, nil)
 
@@ -641,13 +643,11 @@ func TestAgnosterMaxWidth(t *testing.T) {
 			env.On("Shell").Return(shell.BASH)
 
 			path := &Path{
-				Base: Base{
-					env: env,
-					options: options.Map{
-						DisplayRoot:         tc.displayRoot,
-						FolderIcon:          tc.folderIcon,
-						FolderSeparatorIcon: tc.separator,
-					},
+				env: env,
+				options: options.Map{
+					DisplayRoot:         tc.displayRoot,
+					FolderIcon:          tc.folderIcon,
+					FolderSeparatorIcon: tc.separator,
 				},
 				pathSeparator: tc.separator,
 			}
@@ -656,6 +656,91 @@ func TestAgnosterMaxWidth(t *testing.T) {
 			path.setPaths()
 
 			got := path.getAgnosterMaxWidth(tc.maxWidth)
+			assert.Equal(t, tc.expected, got, tc.name)
+		})
+	}
+}
+
+func TestAgnosterGitPath(t *testing.T) {
+	cases := []struct {
+		name     string
+		pwd      string
+		gitDir   *runtime.FileInfo
+		expected string
+		maxWidth int
+	}{
+		{
+			name:     "max_width 0 returns the full path unchanged",
+			pwd:      "/foob/user/repo/src/platform/deep/current",
+			gitDir:   &runtime.FileInfo{IsDir: true, ParentFolder: "/foob/user/repo"},
+			maxWidth: 0,
+			expected: "foob/user/repo/src/platform/deep/current",
+		},
+		{
+			name:     "path fits within max_width, nothing is folded",
+			pwd:      "/foob/user/repo/src/platform/deep/current",
+			gitDir:   &runtime.FileInfo{IsDir: true, ParentFolder: "/foob/user/repo"},
+			maxWidth: 100,
+			expected: "foob/user/repo/src/platform/deep/current",
+		},
+		{
+			name:     "repository root is never folded, even under a tight budget",
+			pwd:      "/foob/user/repo/src/platform/deep/current",
+			gitDir:   &runtime.FileInfo{IsDir: true, ParentFolder: "/foob/user/repo"},
+			maxWidth: 15,
+			expected: "foob/../repo/../current",
+		},
+		{
+			name:     "consecutive folded folders collapse into a single icon",
+			pwd:      "/foob/user/repo/src/platform/deep/current",
+			gitDir:   &runtime.FileInfo{IsDir: true, ParentFolder: "/foob/user/repo"},
+			maxWidth: 30,
+			expected: "foob/../repo/../deep/current",
+		},
+		{
+			name:     "linked git worktree (.git file) is treated like a repository root",
+			pwd:      "/foob/user/repo/src/platform/deep/current",
+			gitDir:   &runtime.FileInfo{ParentFolder: "/foob/user/repo"},
+			maxWidth: 15,
+			expected: "foob/../repo/../current",
+		},
+		{
+			name:     "no repository found falls back to folding everything but root and current",
+			pwd:      "/foob/user/repo/src/platform/deep/current",
+			gitDir:   nil,
+			maxWidth: 15,
+			expected: "foob/../current",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := &mock.Environment{}
+			env.On("Pwd").Return(tc.pwd)
+			env.On("Home").Return("/home")
+			env.On("GOOS").Return(runtime.LINUX)
+			env.On("Shell").Return(shell.BASH)
+
+			var gitErr error
+			if tc.gitDir == nil {
+				gitErr = errors.New("not found")
+				tc.gitDir = &runtime.FileInfo{}
+			}
+
+			env.On("HasParentFilePath", ".git", false).Return(tc.gitDir, gitErr)
+
+			path := &Path{
+				env: env,
+				options: options.Map{
+					FolderIcon:          "..",
+					FolderSeparatorIcon: "/",
+				},
+				pathSeparator: "/",
+			}
+
+			path.setPaths()
+
+			got := path.getAgnosterGitPath(tc.maxWidth)
 			assert.Equal(t, tc.expected, got, tc.name)
 		})
 	}
@@ -834,12 +919,10 @@ func TestFishPath(t *testing.T) {
 			env.On("Shell").Return(shell.BASH)
 
 			path := &Path{
-				Base: Base{
-					env: env,
-					options: options.Map{
-						DirLength:      tc.dirLength,
-						FullLengthDirs: tc.fullLengthDirs,
-					},
+				env: env,
+				options: options.Map{
+					DirLength:      tc.dirLength,
+					FullLengthDirs: tc.fullLengthDirs,
 				},
 				pathSeparator: tc.separator,
 			}
@@ -848,6 +931,52 @@ func TestFishPath(t *testing.T) {
 			result := path.getFishPath()
 
 			assert.Equal(t, result, tc.expected, tc.name)
+		})
+	}
+}
+
+// fish style cuts folder names that are already escaped as template source:
+// the cut must count the name as it is on disk and keep the escape intact
+func TestFishPathEscapedFolderNames(t *testing.T) {
+	cases := []struct {
+		name      string
+		pwd       string
+		expected  string
+		dirLength int
+	}{
+		{name: "delimiter", pwd: "/tmp/{{abc/d", dirLength: 3, expected: "tmp/{{a/d"},
+		{name: "delimiter cut in half", pwd: "/tmp/{{abc/d", dirLength: 1, expected: "t/{/d"},
+		{name: "action across folders", pwd: `/tmp/{{abc/" | print "x" }}`, dirLength: 3, expected: `tmp/{{a/" | print "x" }}`},
+		{name: "chevron", pwd: "/tmp/<abc>/d", dirLength: 2, expected: "tm/<<>a/d"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := new(mock.Environment)
+			env.On("PathSeparator").Return("/")
+			env.On("Home").Return(homeDir)
+			env.On("Pwd").Return(tc.pwd)
+			env.On("GOOS").Return("")
+			env.On("IsWsl").Return(false)
+			env.On("Flags").Return(&runtime.Flags{})
+			env.On("Shell").Return(shell.GENERIC)
+
+			if template.Cache == nil {
+				template.Cache = &cache.Template{}
+			}
+			template.Init(env, nil, nil)
+
+			path := &Path{}
+			path.Init(options.Map{
+				options.Style: Fish,
+				DirLength:     tc.dirLength,
+			}, env)
+			path.pathSeparator = "/"
+
+			path.setPaths()
+			path.setStyle()
+			got := renderTemplateNoTrimSpace(env, "{{ .Path }}", path)
+			assert.Equal(t, tc.expected, got)
 		})
 	}
 }
